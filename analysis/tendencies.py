@@ -8,9 +8,7 @@ from pathlib import Path
 import re
 import pandas as pd
 
-REQUIRED_COLUMNS = ["PLAY #","ODK","DN","DIST","HASH","YARD LN","PLAY TYPE","RESULT","GN/LS","PERSONNEL","OFF FORM","BACKFIELD","MOTION","PS ALIGNMENT","WS ALIGNMENT","STUD ALIGNMENT","FIB","SCHEME","OFF PLAY","PLAY DIR","PLAY (STR/WK)","PZ HOLLEY","PASS PRO","READ","AWAY","COMMENTS"]
-EXPLOSIVE_RUN_YARDS = 15
-EXPLOSIVE_PASS_YARDS = 20
+from config import REQUIRED_COLUMNS, EXPLOSIVE_RUN_YARDS, EXPLOSIVE_PASS_YARDS
 
 def clean(value):
     return "" if pd.isna(value) else str(value).strip()
