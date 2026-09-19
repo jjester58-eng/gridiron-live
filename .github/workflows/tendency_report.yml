@@ -1,0 +1,21 @@
+name: Gridiron Live Tendency Report
+
+on:
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run Gridiron Live analysis
+        env:
+          GOOGLE_CREDS: ${{ secrets.GOOGLE_CREDS }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          PYTHONUNBUFFERED: "1"
+        run: python -u analyze_tendencies.py
