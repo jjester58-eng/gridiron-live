@@ -63,9 +63,15 @@ def write_report(spreadsheet, report):
         ("WHAT FOLLOWS TRIGGERS", report.trigger_sequences),
         ("REPEATED PLAY SEQUENCES", report.repeated_sequences),
         ("REPEATED PLAY FOLLOW-UPS", report.repeated_followups),
-        ("HIGH-FREQUENCY — FORMATIONS", report.frequency_by_formation),
-        ("HIGH-FREQUENCY — SITUATIONS", report.frequency_by_situation),
+        ("HIGH-FREQUENCY — FORMATIONS + YARDS", report.frequency_by_formation),
+        ("HIGH-FREQUENCY — SITUATIONS + YARDS", report.frequency_by_situation),
+        ("HIGH-FREQUENCY — PERSONNEL + YARDS", report.frequency_by_personnel),
+        ("HIGH-FREQUENCY — BACKFIELD + YARDS", report.frequency_by_backfield),
+        ("HIGH-FREQUENCY — MOTION + YARDS", report.frequency_by_motion),
+        ("HIGH-FREQUENCY — SCHEME + YARDS", report.frequency_by_scheme),
+        ("HIGH-FREQUENCY — DIRECTION + YARDS", report.frequency_by_direction),
         ("HIGH-FREQUENCY — PLAY TYPES", report.play_type_frequency),
+        ("RUN / PASS / QB RUN / SACK YARDS", report.run_pass_yards),
         ("SITUATION → NEXT PLAY SEQUENCES", report.situation_sequences),
     ]
     row = 1
