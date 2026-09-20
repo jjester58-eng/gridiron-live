@@ -131,7 +131,7 @@ def previous_play_features(df):
     return out.sort_values(["RATE_DIFFERENCE", "FOLLOWING_EXPLOSIVE_RATE", "TOTAL_FOLLOWING_PLAYS"], ascending=False)
 
 
-def sequence_analysis(df):
+def trigger_sequence_analysis(df):
     """Find what commonly follows meaningful trigger plays.
 
     This is intentionally independent of explosive-play analysis. It looks at
@@ -184,6 +184,31 @@ def sequence_analysis(df):
         ["TRIGGER", "FOLLOWING_RATE", "FOLLOWING_COUNT"],
         ascending=[True, False, False],
     )
+
+
+
+def explosive_sequence_analysis(df):
+    """Summarize the immediate pre-play context for explosive plays."""
+    if len(df) < 2:
+        return pd.DataFrame()
+    rows = []
+    for i in range(1, len(df)):
+        if not bool(df.iloc[i]["EXPLOSIVE"]):
+            continue
+        p, cur = df.iloc[i - 1], df.iloc[i]
+        rows.append({
+            "PREV_FORM": clean(p["OFF FORM"]),
+            "PREV_MOTION": clean(p["MOTION"]),
+            "PREV_PLAY_TYPE": clean(p["PLAY TYPE"]),
+            "EXPLOSIVE_FORM": clean(cur["OFF FORM"]),
+            "EXPLOSIVE_PLAY_TYPE": clean(cur["PLAY TYPE"]),
+            "EXPLOSIVE_PLAY": clean(cur["OFF PLAY"]),
+        })
+    out = pd.DataFrame(rows)
+    if out.empty:
+        return out
+    keys = ["PREV_FORM", "PREV_MOTION", "PREV_PLAY_TYPE", "EXPLOSIVE_FORM", "EXPLOSIVE_PLAY_TYPE"]
+    return out.groupby(keys).size().reset_index(name="EXPLOSIVE_COUNT").sort_values("EXPLOSIVE_COUNT", ascending=False)
 
 
 def repeated_play_sequences(df, min_occurrences=2):
@@ -320,8 +345,8 @@ def analyze(df):
         group_rates(df, "PERSONNEL"),
         group_rates(df, "MOTION"),
         previous_play_features(df),
-        sequence_analysis(df),
-        sequence_analysis(df),
+        explosive_sequence_analysis(df),
+        trigger_sequence_analysis(df),
         repeated_play_sequences(df),
         repeated_play_followups(df),
     )
