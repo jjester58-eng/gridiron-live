@@ -121,6 +121,10 @@ def write_report(spreadsheet, report):
 
     sections = [
         (
+            "DOWN & DISTANCE PLAY PROBABILITIES",
+            report.down_distance_play_probabilities,
+        ),
+        (
             "EXPLOSIVES BY FORMATION + SITUATION",
             report.explosive_by_formation_situation,
         ),
@@ -131,7 +135,6 @@ def write_report(spreadsheet, report):
         ("EXPLOSIVES BY MOTION", report.by_motion),
         ("REPEATED PLAY SEQUENCES", report.repeated_sequences),
         ("REPEATED PLAY FOLLOW-UPS", report.repeated_followups),
-        ("COMPLETIONS + COMMENTS", report.completed_comment_patterns),
         (
             "HIGH-FREQUENCY — SITUATIONS + YARDS",
             report.frequency_by_situation,
