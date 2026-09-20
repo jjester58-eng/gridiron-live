@@ -485,30 +485,41 @@ def repeated_play_followups(df, min_occurrences=2):
 
 
 def completed_comment_patterns(df, min_occurrences=2):
-    """Count repeated completed-play + result + comment combinations."""
+    """Count repeated play + formation + result + comment combinations.
+
+    Includes both completions and incompletions when a coach comment is
+    present, so the report can show repeated pass concepts and the associated
+    formation/comment together.
+    """
     rows = []
     for _, row in df.iterrows():
         result = clean(row.get("RESULT", ""))
-        if "COMPLETE" not in result.upper():
+        result_upper = result.upper()
+        if "COMPLETE" not in result_upper and "INCOMPLETE" not in result_upper:
             continue
+
         comment = clean(row.get("COMMENTS", ""))
         play = play_name(row)
-        if not comment or not play:
+        formation = clean(row.get("OFF FORM", ""))
+        if not comment or not play or not formation:
             continue
+
         rows.append({
-            "FORMATION": clean(row.get("OFF FORM", "")),
             "PLAY": play,
+            "FORMATION": formation,
             "RESULT": result,
             "COMMENTS": comment,
             "PLAY_NUMBER": clean(row.get("PLAY #", "")),
         })
 
     if not rows:
-        return pd.DataFrame(columns=["FORMATION", "PLAY", "RESULT", "COMMENTS", "COUNT", "PLAY_NUMBERS"])
+        return pd.DataFrame(
+            columns=["PLAY", "FORMATION", "RESULT", "COMMENTS", "COUNT", "PLAY_NUMBERS"]
+        )
 
     work = pd.DataFrame(rows)
     out = (
-        work.groupby(["FORMATION", "PLAY", "RESULT", "COMMENTS"])
+        work.groupby(["PLAY", "FORMATION", "RESULT", "COMMENTS"])
         .agg(
             COUNT=("PLAY_NUMBER", "size"),
             PLAY_NUMBERS=("PLAY_NUMBER", lambda s: ", ".join(s.astype(str))),
@@ -516,9 +527,9 @@ def completed_comment_patterns(df, min_occurrences=2):
         .reset_index()
     )
     return out[out["COUNT"] >= min_occurrences].sort_values(
-        ["COUNT", "PLAY", "RESULT"], ascending=[False, True, True]
+        ["COUNT", "PLAY", "FORMATION", "RESULT"],
+        ascending=[False, True, True, True],
     ).reset_index(drop=True)
-
 
 def overall_summary(df):
     """Compact top-of-sheet game summary."""
@@ -543,9 +554,8 @@ def overall_summary(df):
         "RUN YARDS": round(float(work.loc[run_mask, "_YARDS"].sum()), 1),
         "PASS YARDS": round(float(work.loc[pass_mask, "_YARDS"].sum()), 1),
         "TOUCHDOWNS": touchdowns,
-        "FUMBLES": fumbles,
         "INTERCEPTIONS": interceptions,
-        "EXPLOSIVE PLAYS": int(work["EXPLOSIVE"].sum()) if "EXPLOSIVE" in work else 0,
+        "FUMBLES": fumbles,
     }
 
 
