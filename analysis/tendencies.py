@@ -372,6 +372,122 @@ def repeated_play_followups(df, min_occurrences=2):
     )
 
 
+def frequency_tendencies(df, column, min_plays=2, top_n=15):
+    """Describe the most frequently used values without filtering for explosives."""
+    work = df[df[column].map(clean) != ""].copy()
+    if work.empty:
+        return pd.DataFrame(columns=[column, "PLAYS", "FREQUENCY_RATE"])
+    out = work.groupby(column).size().reset_index(name="PLAYS")
+    out["FREQUENCY_RATE"] = (out["PLAYS"] / len(work) * 100).round(1)
+    return out[out["PLAYS"] >= min_plays].sort_values(
+        ["PLAYS", "FREQUENCY_RATE"], ascending=False
+    ).head(top_n).reset_index(drop=True)
+
+
+def situation_bucket(down, dist):
+    """Return the same coach-friendly down/distance buckets used elsewhere."""
+    down = numeric(down)
+    dist = numeric(dist)
+    if down is None or dist is None:
+        return ""
+    down, dist = int(down), max(0, dist)
+    if down == 1:
+        return "1st & Long (10+)" if dist >= 10 else "1st & Short (1-9)"
+    if down == 2:
+        return "2nd & Long (7+)" if dist >= 7 else ("2nd & Medium (4-6)" if dist >= 4 else "2nd & Short (1-3)")
+    if down == 3:
+        return "3rd & Long (7+)" if dist >= 7 else ("3rd & Medium (4-6)" if dist >= 4 else "3rd & Short (1-3)")
+    if down == 4:
+        return "4th Down"
+    return ""
+
+
+def play_result_type(row):
+    """Normalize the result into a small, factual sequence category."""
+    blob = play_blob(row)
+    if is_penalty(row):
+        return "PENALTY"
+    if "INTERCEPTION" in blob or "INT" in blob:
+        return "INTERCEPTION"
+    if "INCOMPLETE" in blob:
+        return "INCOMPLETE PASS"
+    if is_pass(row):
+        return "COMPLETION/PASS"
+    if is_run(row):
+        if "SCRAMBLE" in blob or "QB RUN" in blob or "KEEP" in blob:
+            return "QB RUN"
+        return "RUN"
+    return clean(row.get("PLAY TYPE")) or "OTHER"
+
+
+def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
+    """Find what follows a specific situation/result combination.
+
+    Example: 2nd & Short + INCOMPLETE PASS -> next-down play type.
+    This analyzes every qualifying snap, not just explosives.
+    """
+    if len(df) < 2:
+        return pd.DataFrame()
+
+    rows = []
+    for i in range(len(df) - 1):
+        current, following = df.iloc[i], df.iloc[i + 1]
+        situation = situation_bucket(current["DN"], current["DIST"])
+        if not situation:
+            continue
+        rows.append({
+            "PREVIOUS_SITUATION": situation,
+            "PREVIOUS_RESULT": play_result_type(current),
+            "NEXT_DOWN": clean(following["DN"]),
+            "NEXT_PLAY_TYPE": play_result_type(following),
+            "NEXT_PLAY": play_label(following),
+        })
+
+    if not rows:
+        return pd.DataFrame()
+
+    work = pd.DataFrame(rows)
+    grouped = (
+        work.groupby(["PREVIOUS_SITUATION", "PREVIOUS_RESULT", "NEXT_DOWN",
+                      "NEXT_PLAY_TYPE"])
+        .size()
+        .reset_index(name="FOLLOWING_COUNT")
+    )
+    totals = grouped.groupby(
+        ["PREVIOUS_SITUATION", "PREVIOUS_RESULT"]
+    )["FOLLOWING_COUNT"].transform("sum")
+    grouped["TOTAL_AFTER_TRIGGER"] = totals
+    grouped["FOLLOWING_RATE"] = (
+        grouped["FOLLOWING_COUNT"] / totals * 100
+    ).round(1)
+    grouped = grouped[grouped["FOLLOWING_COUNT"] >= min_occurrences]
+    return grouped.sort_values(
+        ["PREVIOUS_SITUATION", "PREVIOUS_RESULT", "FOLLOWING_RATE", "FOLLOWING_COUNT"],
+        ascending=[True, True, False, False],
+    ).groupby(
+        ["PREVIOUS_SITUATION", "PREVIOUS_RESULT"], group_keys=False
+    ).head(top_n).reset_index(drop=True)
+
+
+def general_play_type_frequency(df):
+    """Overall run/pass/QB-run frequency using the same classifier as explosives."""
+    rows = []
+    for _, row in df.iterrows():
+        if is_pass(row):
+            category = "PASS"
+        elif is_run(row):
+            category = "QB RUN" if any(
+                x in play_blob(row) for x in ["SCRAMBLE", "QB RUN", "KEEP"]
+            ) else "RUN"
+        else:
+            category = "OTHER"
+        rows.append(category)
+    out = pd.Series(rows, name="PLAY_TYPE").value_counts().reset_index()
+    out.columns = ["PLAY_TYPE", "PLAYS"]
+    out["FREQUENCY_RATE"] = (out["PLAYS"] / len(df) * 100).round(1) if len(df) else 0
+    return out
+
+
 @dataclass
 class TendencyReport:
     total_plays: int
@@ -389,6 +505,10 @@ class TendencyReport:
     trigger_sequences: pd.DataFrame
     repeated_sequences: pd.DataFrame
     repeated_followups: pd.DataFrame
+    frequency_by_formation: pd.DataFrame
+    frequency_by_situation: pd.DataFrame
+    play_type_frequency: pd.DataFrame
+    situation_sequences: pd.DataFrame
 
     def summary(self):
         return {
@@ -426,6 +546,10 @@ def analyze(df):
         trigger_sequence_analysis(df),
         repeated_play_sequences(df),
         repeated_play_followups(df),
+        frequency_tendencies(df, "OFF FORM"),
+        frequency_tendencies(situation, "SITUATION"),
+        general_play_type_frequency(df),
+        situation_sequence_analysis(df),
     )
 
 

@@ -63,6 +63,10 @@ def write_report(spreadsheet, report):
         ("WHAT FOLLOWS TRIGGERS", report.trigger_sequences),
         ("REPEATED PLAY SEQUENCES", report.repeated_sequences),
         ("REPEATED PLAY FOLLOW-UPS", report.repeated_followups),
+        ("HIGH-FREQUENCY — FORMATIONS", report.frequency_by_formation),
+        ("HIGH-FREQUENCY — SITUATIONS", report.frequency_by_situation),
+        ("HIGH-FREQUENCY — PLAY TYPES", report.play_type_frequency),
+        ("SITUATION → NEXT PLAY SEQUENCES", report.situation_sequences),
     ]
     row = 1
     for title, section in sections:
