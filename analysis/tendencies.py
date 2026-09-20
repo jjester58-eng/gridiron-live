@@ -85,6 +85,75 @@ def play_label(row):
     return f"{name} {direction}".strip()
 
 
+def down_distance_tendencies(df):
+    """Consolidate down and distance into coach-friendly situations."""
+    rows = []
+    for _, row in df.iterrows():
+        down = numeric(row.get("DN"))
+        dist = numeric(row.get("DIST"))
+        if down is None or dist is None:
+            continue
+        down = int(down)
+        dist = max(0, dist)
+
+        if down == 1:
+            bucket = "1st & Long (10+)" if dist >= 10 else "1st & Short (1-9)"
+        elif down == 2:
+            if dist >= 7:
+                bucket = "2nd & Long (7+)"
+            elif dist >= 4:
+                bucket = "2nd & Medium (4-6)"
+            else:
+                bucket = "2nd & Short (1-3)"
+        elif down == 3:
+            if dist >= 7:
+                bucket = "3rd & Long (7+)"
+            elif dist >= 4:
+                bucket = "3rd & Medium (4-6)"
+            else:
+                bucket = "3rd & Short (1-3)"
+        elif down == 4:
+            bucket = "4th Down"
+        else:
+            continue
+
+        rows.append({
+            "DOWN & DISTANCE": bucket,
+            "RUN": int(is_run(row)),
+            "PASS": int(is_pass(row)),
+            "EXPLOSIVE": int(bool(row.get("EXPLOSIVE", False))),
+        })
+
+    if not rows:
+        return pd.DataFrame(columns=[
+            "DOWN & DISTANCE", "PLAYS", "RUN", "PASS", "EXPLOSIVES", "EXPLOSIVE_RATE"
+        ])
+
+    work = pd.DataFrame(rows)
+    out = work.groupby("DOWN & DISTANCE").agg(
+        PLAYS=("RUN", "size"),
+        RUN=("RUN", "sum"),
+        PASS=("PASS", "sum"),
+        EXPLOSIVES=("EXPLOSIVE", "sum"),
+    ).reset_index()
+
+    out["EXPLOSIVE_RATE"] = (out["EXPLOSIVES"] / out["PLAYS"] * 100).round(1)
+
+    order = {
+        "1st & Long (10+)": 1,
+        "1st & Short (1-9)": 2,
+        "2nd & Long (7+)": 3,
+        "2nd & Medium (4-6)": 4,
+        "2nd & Short (1-3)": 5,
+        "3rd & Long (7+)": 6,
+        "3rd & Medium (4-6)": 7,
+        "3rd & Short (1-3)": 8,
+        "4th Down": 9,
+    }
+    out["_ORDER"] = out["DOWN & DISTANCE"].map(order)
+    return out.sort_values("_ORDER").drop(columns="_ORDER").reset_index(drop=True)
+
+
 def group_rates(df, column):
     work = df[df[column].map(clean) != ""].copy()
     if work.empty:
@@ -314,6 +383,7 @@ class TendencyReport:
     by_direction: pd.DataFrame
     by_personnel: pd.DataFrame
     by_motion: pd.DataFrame
+    down_distance: pd.DataFrame
     prior_play_features: pd.DataFrame
     sequences: pd.DataFrame
     trigger_sequences: pd.DataFrame
@@ -350,6 +420,7 @@ def analyze(df):
         group_rates(df, "PLAY DIR"),
         group_rates(df, "PERSONNEL"),
         group_rates(df, "MOTION"),
+        down_distance_tendencies(df),
         previous_play_features(df),
         explosive_sequence_analysis(df),
         trigger_sequence_analysis(df),
