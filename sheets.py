@@ -97,7 +97,6 @@ def write_report(spreadsheet, report):
     # combined sections. EXPLOSIVES BY PERSONNEL and DOWN & DISTANCE — ALL
     # PLAYS were removed from the report.
     sections = [
-        ("SUMMARY", pd.DataFrame([report.summary()])),
         ("EXPLOSIVE PLAYS", report.explosive_detail),
         ("FORMATIONS", report.formation_frequency),
         (
