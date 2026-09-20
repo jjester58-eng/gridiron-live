@@ -496,6 +496,7 @@ def completed_comment_patterns(df, min_occurrences=2):
         if not comment or not play:
             continue
         rows.append({
+            "FORMATION": clean(row.get("OFF FORM", "")),
             "PLAY": play,
             "RESULT": result,
             "COMMENTS": comment,
@@ -503,11 +504,11 @@ def completed_comment_patterns(df, min_occurrences=2):
         })
 
     if not rows:
-        return pd.DataFrame(columns=["PLAY", "RESULT", "COMMENTS", "COUNT", "PLAY_NUMBERS"])
+        return pd.DataFrame(columns=["FORMATION", "PLAY", "RESULT", "COMMENTS", "COUNT", "PLAY_NUMBERS"])
 
     work = pd.DataFrame(rows)
     out = (
-        work.groupby(["PLAY", "RESULT", "COMMENTS"])
+        work.groupby(["FORMATION", "PLAY", "RESULT", "COMMENTS"])
         .agg(
             COUNT=("PLAY_NUMBER", "size"),
             PLAY_NUMBERS=("PLAY_NUMBER", lambda s: ", ".join(s.astype(str))),
