@@ -90,14 +90,11 @@ def write_report(spreadsheet, report):
         )
     )
 
+    # Clear the entire existing report before rebuilding it.
+    # This removes sections that are no longer part of the report.
     worksheet.clear()
 
-    # Keep the Google Sheet writer in lockstep with TendencyReport.
-    # Explosive formation + situation and hash + direction are intentionally
-    # combined sections. EXPLOSIVES BY PERSONNEL and DOWN & DISTANCE — ALL
-    # PLAYS were removed from the report.
     sections = [
-        ("SUMMARY", pd.DataFrame([report.summary()])),
         (
             "EXPLOSIVES BY FORMATION + SITUATION",
             report.explosive_by_formation_situation,
