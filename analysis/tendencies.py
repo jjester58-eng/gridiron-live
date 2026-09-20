@@ -484,6 +484,70 @@ def repeated_play_followups(df, min_occurrences=2):
     )
 
 
+def completed_comment_patterns(df, min_occurrences=2):
+    """Count repeated completed-play + result + comment combinations."""
+    rows = []
+    for _, row in df.iterrows():
+        result = clean(row.get("RESULT", ""))
+        if "COMPLETE" not in result.upper():
+            continue
+        comment = clean(row.get("COMMENTS", ""))
+        play = play_name(row)
+        if not comment or not play:
+            continue
+        rows.append({
+            "PLAY": play,
+            "RESULT": result,
+            "COMMENTS": comment,
+            "PLAY_NUMBER": clean(row.get("PLAY #", "")),
+        })
+
+    if not rows:
+        return pd.DataFrame(columns=["PLAY", "RESULT", "COMMENTS", "COUNT", "PLAY_NUMBERS"])
+
+    work = pd.DataFrame(rows)
+    out = (
+        work.groupby(["PLAY", "RESULT", "COMMENTS"])
+        .agg(
+            COUNT=("PLAY_NUMBER", "size"),
+            PLAY_NUMBERS=("PLAY_NUMBER", lambda s: ", ".join(s.astype(str))),
+        )
+        .reset_index()
+    )
+    return out[out["COUNT"] >= min_occurrences].sort_values(
+        ["COUNT", "PLAY", "RESULT"], ascending=[False, True, True]
+    ).reset_index(drop=True)
+
+
+def overall_summary(df):
+    """Compact top-of-sheet game summary."""
+    work = df.copy()
+    work["_CLASS"] = work.apply(classify_play, axis=1)
+    work["_YARDS"] = work.apply(
+        lambda r: numeric(r.get("GN/LS")) if numeric(r.get("GN/LS")) is not None
+        else (result_yards(r.get("RESULT")) or 0), axis=1
+    )
+    run_mask = work["_CLASS"].isin({"RUN", "QB RUN"})
+    pass_mask = work["_CLASS"] == "PASS"
+    blob = work.apply(play_blob, axis=1)
+
+    touchdowns = int(blob.str.contains(r"TOUCHDOWN|\bTD\b", regex=True).sum())
+    fumbles = int(blob.str.contains(r"FUMBLE|FUMBLED", regex=True).sum())
+    interceptions = int(blob.str.contains(r"INTERCEPTION|\bINT\b", regex=True).sum())
+
+    return {
+        "TOTAL PLAYS": int(len(work)),
+        "RUN PLAYS": int(run_mask.sum()),
+        "PASS PLAYS": int(pass_mask.sum()),
+        "RUN YARDS": round(float(work.loc[run_mask, "_YARDS"].sum()), 1),
+        "PASS YARDS": round(float(work.loc[pass_mask, "_YARDS"].sum()), 1),
+        "TOUCHDOWNS": touchdowns,
+        "FUMBLES": fumbles,
+        "INTERCEPTIONS": interceptions,
+        "EXPLOSIVE PLAYS": int(work["EXPLOSIVE"].sum()) if "EXPLOSIVE" in work else 0,
+    }
+
+
 def frequency_profile(df, column, min_plays=2, top_n=15):
     """Frequency plus run/pass usage and yard production for one analytical lens."""
     work = df[df[column].map(clean) != ""].copy()
@@ -681,13 +745,17 @@ class TendencyReport:
     frequency_by_scheme: pd.DataFrame
     frequency_by_direction: pd.DataFrame
     run_pass_yards: pd.DataFrame
+    completed_comment_patterns: pd.DataFrame
+    _summary_details: dict
 
     def summary(self):
-        return {
-            "TOTAL_PLAYS": self.total_plays,
-            "EXPLOSIVE_PLAYS": self.explosive_plays,
-            "EXPLOSIVE_RATE": round(self.explosive_plays / self.total_plays * 100, 1) if self.total_plays else 0,
+        result = {
+            "TOTAL PLAYS": self.total_plays,
+            "EXPLOSIVE PLAYS": self.explosive_plays,
+            "EXPLOSIVE RATE": round(self.explosive_plays / self.total_plays * 100, 1) if self.total_plays else 0,
         }
+        result.update(self._summary_details)
+        return result
 
 
 def analyze(df):
@@ -724,6 +792,8 @@ def analyze(df):
         frequency_profile(df, "SCHEME"),
         frequency_profile(df, "PLAY DIR"),
         run_pass_yard_summary(df),
+        completed_comment_patterns(df),
+        overall_summary(df),
     )
 
 
@@ -748,6 +818,7 @@ def write_report(report, output_dir="output"):
     report.frequency_by_scheme.to_csv(out / "frequency_by_scheme.csv", index=False)
     report.frequency_by_direction.to_csv(out / "frequency_by_direction.csv", index=False)
     report.run_pass_yards.to_csv(out / "run_pass_yards.csv", index=False)
+    report.completed_comment_patterns.to_csv(out / "completed_comment_patterns.csv", index=False)
 
 
 def main(input_csv, output_dir="output"):

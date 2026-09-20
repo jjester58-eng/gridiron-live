@@ -108,15 +108,9 @@ def write_report(spreadsheet, report):
             report.explosive_by_hash_direction,
         ),
         ("EXPLOSIVES BY MOTION", report.by_motion),
-        ("PREVIOUS PLAY FEATURES", report.prior_play_features),
-        ("EXPLOSIVE SEQUENCES", report.sequences),
-        ("WHAT FOLLOWS TRIGGERS", report.trigger_sequences),
         ("REPEATED PLAY SEQUENCES", report.repeated_sequences),
         ("REPEATED PLAY FOLLOW-UPS", report.repeated_followups),
-        (
-            "HIGH-FREQUENCY — FORMATIONS + YARDS",
-            report.frequency_by_formation,
-        ),
+        ("COMPLETIONS + COMMENTS", report.completed_comment_patterns),
         (
             "HIGH-FREQUENCY — SITUATIONS + YARDS",
             report.frequency_by_situation,
