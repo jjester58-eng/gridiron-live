@@ -541,23 +541,28 @@ def overall_summary(df):
     )
     run_mask = work["_CLASS"].isin({"RUN", "QB RUN"})
     pass_mask = work["_CLASS"] == "PASS"
+    sack_mask = work["_CLASS"] == "SACK"
     blob = work.apply(play_blob, axis=1)
 
-    touchdowns = int(blob.str.contains(r"TOUCHDOWN|\bTD\b", regex=True).sum())
+    td_mask = blob.str.contains(r"TOUCHDOWN|\bTD\b", regex=True)
+    rush_td_mask = run_mask & td_mask
+    pass_td_mask = pass_mask & td_mask
     fumbles = int(blob.str.contains(r"FUMBLE|FUMBLED", regex=True).sum())
     interceptions = int(blob.str.contains(r"INTERCEPTION|\bINT\b", regex=True).sum())
 
     return {
         "TOTAL PLAYS": int(len(work)),
-        "RUN PLAYS": int(run_mask.sum()),
-        "PASS PLAYS": int(pass_mask.sum()),
-        "RUN YARDS": round(float(work.loc[run_mask, "_YARDS"].sum()), 1),
-        "PASS YARDS": round(float(work.loc[pass_mask, "_YARDS"].sum()), 1),
-        "TOUCHDOWNS": touchdowns,
-        "INTERCEPTIONS": interceptions,
+        "RUN ATT": int(run_mask.sum()),
+        "RUN YDS": round(float(work.loc[run_mask, "_YARDS"].sum()), 1),
+        "PASS ATT": int(pass_mask.sum()),
+        "PASS YDS": round(float(work.loc[pass_mask, "_YARDS"].sum()), 1),
+        "SACK": int(sack_mask.sum()),
+        "INT": interceptions,
         "FUMBLES": fumbles,
+        "TD": int(td_mask.sum()),
+        "RUSH TD": int(rush_td_mask.sum()),
+        "PASS TD": int(pass_td_mask.sum()),
     }
-
 
 def frequency_profile(df, column, min_plays=2, top_n=15):
     """Frequency plus run/pass usage and yard production for one analytical lens."""
