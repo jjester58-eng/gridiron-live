@@ -694,7 +694,7 @@ def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
     work = pd.DataFrame(rows)
     grouped = (
         work.groupby(["PREVIOUS_SITUATION", "PREVIOUS_RESULT", "NEXT_DOWN",
-                      "NEXT_PLAY_TYPE"])
+                      "NEXT_PLAY_TYPE", "NEXT_PLAY"])
         .size()
         .reset_index(name="FOLLOWING_COUNT")
     )
