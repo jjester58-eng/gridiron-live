@@ -94,6 +94,24 @@ def write_report(spreadsheet, report):
     # This removes sections that are no longer part of the report.
     worksheet.clear()
 
+    # Restore the game identity/stat line at the very top.
+    # Team identity comes from the Google Spreadsheet title.
+    summary = report.summary()
+    top_line = [
+        f"TEAM: {spreadsheet.title}",
+        f"RUN ATT: {summary['RUN ATT']}",
+        f"RUN YDS: {summary['RUN YDS']}",
+        f"PASS ATT: {summary['PASS ATT']}",
+        f"PASS YDS: {summary['PASS YDS']}",
+        f"SACK: {summary['SACK']}",
+        f"INT: {summary['INT']}",
+        f"FUMBLES: {summary['FUMBLES']}",
+        f"TD: {summary['TD']}",
+        f"RUSH TD: {summary['RUSH TD']}",
+        f"PASS TD: {summary['PASS TD']}",
+    ]
+    worksheet.update([top_line], "A1")
+
     sections = [
         (
             "EXPLOSIVES BY FORMATION + SITUATION",
@@ -139,7 +157,7 @@ def write_report(spreadsheet, report):
         ),
     ]
 
-    row = 1
+    row = 3
     for title, section in sections:
         worksheet.update([[title]], f"A{row}")
         row += 1
