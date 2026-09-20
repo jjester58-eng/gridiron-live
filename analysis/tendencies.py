@@ -61,9 +61,9 @@ def previous_play_features(df):
             value = clean(prev[col])
             if not value: continue
             previous_values = df.iloc[:-1][col].map(clean)
-            mask = previous_values == value
+            mask = (previous_values == value).to_numpy()
             total = int(mask.sum())
-            explosives = int(df["EXPLOSIVE"].iloc[1:][mask].sum())
+            explosives = int(df["EXPLOSIVE"].iloc[1:].to_numpy()[mask].sum())
             overall_mask = df[col].map(clean) == value
             overall_total = int(overall_mask.sum())
             overall_explosives = int(df.loc[overall_mask, "EXPLOSIVE"].sum())
