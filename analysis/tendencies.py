@@ -746,6 +746,7 @@ class TendencyReport:
     frequency_by_direction: pd.DataFrame
     run_pass_yards: pd.DataFrame
     completed_comment_patterns: pd.DataFrame
+    formation_frequency: pd.DataFrame
     _summary_details: dict
 
     def summary(self):
@@ -793,6 +794,7 @@ def analyze(df):
         frequency_profile(df, "PLAY DIR"),
         run_pass_yard_summary(df),
         completed_comment_patterns(df),
+        frequency_tendencies(df, "OFF FORM"),
         overall_summary(df),
     )
 
