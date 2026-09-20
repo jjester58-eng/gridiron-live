@@ -227,6 +227,69 @@ def down_distance_play_probabilities(df, min_occurrences=2, top_n=10):
         .reset_index(drop=True)
     )
 
+
+def hash_down_distance_play_probabilities(df, min_occurrences=2, top_n=10):
+    """Show play probabilities by hash and down/distance situation."""
+    rows = []
+    for _, row in df.iterrows():
+        hash_value = clean(row.get("HASH", ""))
+        situation = situation_bucket(row.get("DN", ""), row.get("DIST", ""))
+        play = play_label(row)
+
+        if not hash_value or not situation or not play or play == "UNKNOWN":
+            continue
+
+        rows.append({
+            "HASH": hash_value,
+            "DOWN & DISTANCE": situation,
+            "PLAY": play,
+        })
+
+    if not rows:
+        return pd.DataFrame(columns=[
+            "HASH", "DOWN & DISTANCE", "PLAY", "COUNT", "PROBABILITY"
+        ])
+
+    work = pd.DataFrame(rows)
+    grouped = (
+        work.groupby(["HASH", "DOWN & DISTANCE", "PLAY"])
+        .size()
+        .reset_index(name="COUNT")
+    )
+
+    totals = grouped.groupby(
+        ["HASH", "DOWN & DISTANCE"]
+    )["COUNT"].transform("sum")
+    grouped["PROBABILITY"] = (
+        grouped["COUNT"] / totals * 100
+    ).round(1)
+
+    grouped = grouped[grouped["COUNT"] >= min_occurrences]
+
+    order = {
+        "1st & Long (10+)": 1,
+        "1st & Short (1-9)": 2,
+        "2nd & Long (7+)": 3,
+        "2nd & Medium (4-6)": 4,
+        "2nd & Short (1-3)": 5,
+        "3rd & Long (7+)": 6,
+        "3rd & Medium (4-6)": 7,
+        "3rd & Short (1-3)": 8,
+        "4th Down": 9,
+    }
+    grouped["_ORDER"] = grouped["DOWN & DISTANCE"].map(order)
+
+    return (
+        grouped.sort_values(
+            ["HASH", "_ORDER", "PROBABILITY", "COUNT", "PLAY"],
+            ascending=[True, True, False, False, True],
+        )
+        .groupby(["HASH", "DOWN & DISTANCE"], group_keys=False)
+        .head(top_n)
+        .drop(columns="_ORDER")
+        .reset_index(drop=True)
+    )
+
 def group_rates(df, column):
     work = df[df[column].map(clean) != ""].copy()
     if work.empty:
@@ -815,6 +878,7 @@ class TendencyReport:
     frequency_by_formation: pd.DataFrame
     frequency_by_situation: pd.DataFrame
     down_distance_play_probabilities: pd.DataFrame
+    hash_down_distance_play_probabilities: pd.DataFrame
     play_type_frequency: pd.DataFrame
     situation_sequences: pd.DataFrame
     frequency_by_personnel: pd.DataFrame
@@ -864,6 +928,7 @@ def analyze(df):
         frequency_profile(df, "OFF FORM"),
         frequency_profile(situation, "SITUATION"),
         down_distance_play_probabilities(df),
+        hash_down_distance_play_probabilities(df),
         general_play_type_frequency(df),
         situation_sequence_analysis(df),
         frequency_profile(df, "PERSONNEL"),
