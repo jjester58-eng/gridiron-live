@@ -34,14 +34,31 @@ def play_blob(row):
     return " ".join(clean(row.get(c, "")) for c in ["PLAY TYPE", "OFF PLAY", "RESULT"]).upper()
 
 
-def is_pass(row):
+def classify_play(row):
+    """Classify the snap for statistical rollups.
+
+    Scrambles/QB runs count as rushing. Sacks are kept separate and are not
+    counted as passing plays. Everything else that is clearly a pass counts
+    as PASS, including completions and interceptions.
+    """
     b = play_blob(row)
-    return any(x in b for x in ["PASS", "SCREEN", "RPO", "QB THROW", "COMPLETE", "INCOMPLETE", "INTERCEPTION"])
+    if any(x in b for x in ["SCRAMBLE", "QB RUN", "KEEP", "QB SNEAK"]):
+        return "QB RUN"
+    if "SACK" in b:
+        return "SACK"
+    if any(x in b for x in ["RUN", "RUSH", "DRAW", "SNEAK"]):
+        return "RUN"
+    if any(x in b for x in ["PASS", "SCREEN", "RPO", "QB THROW", "COMPLETE", "INCOMPLETE", "INTERCEPTION"]):
+        return "PASS"
+    return "OTHER"
+
+
+def is_pass(row):
+    return classify_play(row) == "PASS"
 
 
 def is_run(row):
-    b = play_blob(row)
-    return any(x in b for x in ["RUN", "RUSH", "SCRAMBLE", "QB RUN", "KEEP", "DRAW", "SNEAK"])
+    return classify_play(row) in {"RUN", "QB RUN"}
 
 
 def is_explosive(row):
@@ -372,6 +389,73 @@ def repeated_play_followups(df, min_occurrences=2):
     )
 
 
+def frequency_profile(df, column, min_plays=2, top_n=15):
+    """Frequency plus run/pass usage and yard production for any categorical lens."""
+    work = df[df[column].map(clean) != ""].copy()
+    if work.empty:
+        return pd.DataFrame(columns=[
+            column, "PLAYS", "FREQUENCY_RATE", "RUN", "PASS", "QB_RUN",
+            "RUN_YARDS", "PASS_YARDS", "TOTAL_YARDS", "YARDS_PER_PLAY"
+        ])
+
+    work["_CLASS"] = work.apply(classify_play, axis=1)
+    work["_YARDS"] = work.apply(
+        lambda r: numeric(r.get("GN/LS")) if numeric(r.get("GN/LS")) is not None
+        else result_yards(r.get("RESULT")) or 0,
+        axis=1,
+    )
+    work["_RUN_YARDS"] = work.apply(
+        lambda r: r["_YARDS"] if r["_CLASS"] in {"RUN", "QB RUN"} else 0, axis=1
+    )
+    work["_PASS_YARDS"] = work.apply(
+        lambda r: r["_YARDS"] if r["_CLASS"] == "PASS" else 0, axis=1
+    )
+
+    out = work.groupby(column).agg(
+        PLAYS=("_CLASS", "size"),
+        RUN=("_CLASS", lambda s: int((s == "RUN").sum())),
+        PASS=("_CLASS", lambda s: int((s == "PASS").sum())),
+        QB_RUN=("_CLASS", lambda s: int((s == "QB RUN").sum())),
+        RUN_YARDS=("_RUN_YARDS", "sum"),
+        PASS_YARDS=("_PASS_YARDS", "sum"),
+        TOTAL_YARDS=("_YARDS", "sum"),
+    ).reset_index()
+
+    out["FREQUENCY_RATE"] = (out["PLAYS"] / len(work) * 100).round(1)
+    out["YARDS_PER_PLAY"] = (out["TOTAL_YARDS"] / out["PLAYS"]).round(1)
+    return out[out["PLAYS"] >= min_plays].sort_values(
+        ["PLAYS", "FREQUENCY_RATE"], ascending=False
+    ).head(top_n).reset_index(drop=True)
+
+
+def run_pass_yard_summary(df):
+    """Overall run/pass/QB-run production; sacks remain separate from pass."""
+    work = df.copy()
+    work["_CLASS"] = work.apply(classify_play, axis=1)
+    work["_YARDS"] = work.apply(
+        lambda r: numeric(r.get("GN/LS")) if numeric(r.get("GN/LS")) is not None
+        else result_yards(r.get("RESULT")) or 0,
+        axis=1,
+    )
+    rows = []
+    for label, classes, yard_col in [
+        ("RUN", {"RUN"}, "RUN_YARDS"),
+        ("QB RUN", {"QB RUN"}, "RUN_YARDS"),
+        ("PASS", {"PASS"}, "PASS_YARDS"),
+        ("SACK", {"SACK"}, None),
+    ]:
+        mask = work["_CLASS"].isin(classes)
+        plays = int(mask.sum())
+        yards = float(work.loc[mask, "_YARDS"].sum())
+        rows.append({
+            "PLAY_CATEGORY": label,
+            "PLAYS": plays,
+            "YARDS": round(yards, 1),
+            "YARDS_PER_PLAY": round(yards / plays, 1) if plays else 0,
+        })
+    return pd.DataFrame(rows)
+
+
 def frequency_tendencies(df, column, min_plays=2, top_n=15):
     """Describe the most frequently used values without filtering for explosives."""
     work = df[df[column].map(clean) != ""].copy()
@@ -509,6 +593,12 @@ class TendencyReport:
     frequency_by_situation: pd.DataFrame
     play_type_frequency: pd.DataFrame
     situation_sequences: pd.DataFrame
+    frequency_by_personnel: pd.DataFrame
+    frequency_by_backfield: pd.DataFrame
+    frequency_by_motion: pd.DataFrame
+    frequency_by_scheme: pd.DataFrame
+    frequency_by_direction: pd.DataFrame
+    run_pass_yards: pd.DataFrame
 
     def summary(self):
         return {
@@ -546,10 +636,16 @@ def analyze(df):
         trigger_sequence_analysis(df),
         repeated_play_sequences(df),
         repeated_play_followups(df),
-        frequency_tendencies(df, "OFF FORM"),
-        frequency_tendencies(situation, "SITUATION"),
+        frequency_profile(df, "OFF FORM"),
+        frequency_profile(situation, "SITUATION"),
         general_play_type_frequency(df),
         situation_sequence_analysis(df),
+        frequency_profile(df, "PERSONNEL"),
+        frequency_profile(df, "BACKFIELD"),
+        frequency_profile(df, "MOTION"),
+        frequency_profile(df, "SCHEME"),
+        frequency_profile(df, "PLAY DIR"),
+        run_pass_yard_summary(df),
     )
 
 
@@ -569,6 +665,14 @@ def write_report(report, output_dir="output"):
     report.trigger_sequences.to_csv(out / "trigger_sequences.csv", index=False)
     report.repeated_sequences.to_csv(out / "repeated_play_sequences.csv", index=False)
     report.repeated_followups.to_csv(out / "repeated_play_followups.csv", index=False)
+    report.frequency_by_formation.to_csv(out / "frequency_by_formation.csv", index=False)
+    report.frequency_by_situation.to_csv(out / "frequency_by_situation.csv", index=False)
+    report.frequency_by_personnel.to_csv(out / "frequency_by_personnel.csv", index=False)
+    report.frequency_by_backfield.to_csv(out / "frequency_by_backfield.csv", index=False)
+    report.frequency_by_motion.to_csv(out / "frequency_by_motion.csv", index=False)
+    report.frequency_by_scheme.to_csv(out / "frequency_by_scheme.csv", index=False)
+    report.frequency_by_direction.to_csv(out / "frequency_by_direction.csv", index=False)
+    report.run_pass_yards.to_csv(out / "run_pass_yards.csv", index=False)
 
 
 def main(input_csv, output_dir="output"):
