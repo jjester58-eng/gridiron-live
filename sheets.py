@@ -112,6 +112,13 @@ def write_report(spreadsheet, report):
     ]
     worksheet.update([top_line], "A1")
 
+    # Put the recurring completion/comment patterns immediately after the
+    # identity/stat line, before the other tendency sections.
+    worksheet.update([["COMPLETIONS + COMMENTS"]], "A3")
+    completion_values = dataframe_values(report.completed_comment_patterns)
+    if completion_values:
+        worksheet.update(completion_values, "A4")
+
     sections = [
         (
             "EXPLOSIVES BY FORMATION + SITUATION",
@@ -157,7 +164,7 @@ def write_report(spreadsheet, report):
         ),
     ]
 
-    row = 3
+    row = 3 + len(completion_values) + 3
     for title, section in sections:
         worksheet.update([[title]], f"A{row}")
         row += 1
