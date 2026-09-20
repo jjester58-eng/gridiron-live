@@ -29,6 +29,10 @@ Opponent/game play data is never committed to this repository.
 - Hash, direction, personnel, and motion
 - Previous-play feature analysis
 - Immediate explosive-play sequences
+- High-frequency tendencies by formation, situation, personnel, backfield, motion, scheme, and direction
+- Situation/result → next-play sequence analysis
+- Run, pass, QB-run, and sack yard production
+- Run/pass yards and yards per play within frequency profiles
 - Rate comparisons against the overall sample
 
 The analyzer is descriptive and does not make coaching decisions.
