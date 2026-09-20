@@ -98,7 +98,6 @@ def write_report(spreadsheet, report):
     # PLAYS were removed from the report.
     sections = [
         ("SUMMARY", pd.DataFrame([report.summary()])),
-        ("EXPLOSIVE PLAYS", report.explosive_detail),
         (
             "EXPLOSIVES BY FORMATION + SITUATION",
             report.explosive_by_formation_situation,
