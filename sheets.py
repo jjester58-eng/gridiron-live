@@ -57,6 +57,7 @@ def write_report(spreadsheet, report):
         ("EXPLOSIVES BY DIRECTION", report.by_direction),
         ("EXPLOSIVES BY PERSONNEL", report.by_personnel),
         ("EXPLOSIVES BY MOTION", report.by_motion),
+        ("DOWN & DISTANCE — ALL PLAYS", report.down_distance),
         ("PREVIOUS PLAY FEATURES", report.prior_play_features),
         ("EXPLOSIVE SEQUENCES", report.sequences),
         ("WHAT FOLLOWS TRIGGERS", report.trigger_sequences),
