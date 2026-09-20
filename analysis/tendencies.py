@@ -91,7 +91,13 @@ def group_rates(df, column):
         return pd.DataFrame(columns=[column, "PLAYS", "EXPLOSIVES", "EXPLOSIVE_RATE"])
     out = work.groupby(column).agg(PLAYS=("EXPLOSIVE", "size"), EXPLOSIVES=("EXPLOSIVE", "sum")).reset_index()
     out["EXPLOSIVE_RATE"] = (out["EXPLOSIVES"] / out["PLAYS"] * 100).round(1)
-    return out.sort_values(["EXPLOSIVE_RATE", "EXPLOSIVES", "PLAYS"], ascending=False)
+    # Only show categories that actually produced an explosive play.
+    out = out[out["EXPLOSIVES"] > 0]
+    # Keep the coach-facing report concise.
+    return out.sort_values(
+        ["EXPLOSIVE_RATE", "EXPLOSIVES", "PLAYS"],
+        ascending=False,
+    ).head(10)
 
 
 def previous_play_features(df):
