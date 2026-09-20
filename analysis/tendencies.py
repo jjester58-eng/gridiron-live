@@ -179,6 +179,30 @@ def group_rates(df, column):
     ).head(10)
 
 
+def group_rates_combo(df, columns, top_n=20):
+    """Group explosive rates by a combined contextual lens."""
+    work = df.copy()
+    for column in columns:
+        work = work[work[column].map(clean) != ""]
+    if work.empty:
+        return pd.DataFrame(columns=list(columns) + ["PLAYS", "EXPLOSIVES", "EXPLOSIVE_RATE"])
+
+    out = (
+        work.groupby(list(columns))
+        .agg(
+            PLAYS=("EXPLOSIVE", "size"),
+            EXPLOSIVES=("EXPLOSIVE", "sum"),
+        )
+        .reset_index()
+    )
+    out["EXPLOSIVE_RATE"] = (out["EXPLOSIVES"] / out["PLAYS"] * 100).round(1)
+    out = out[out["EXPLOSIVES"] > 0]
+    return out.sort_values(
+        ["EXPLOSIVE_RATE", "EXPLOSIVES", "PLAYS"],
+        ascending=False,
+    ).head(top_n).reset_index(drop=True)
+
+
 def previous_play_features(df):
     if len(df) < 2:
         return pd.DataFrame()
@@ -639,13 +663,9 @@ class TendencyReport:
     total_plays: int
     explosive_plays: int
     explosive_detail: pd.DataFrame
-    by_formation: pd.DataFrame
-    by_situation: pd.DataFrame
-    by_hash: pd.DataFrame
-    by_direction: pd.DataFrame
-    by_personnel: pd.DataFrame
+    explosive_by_formation_situation: pd.DataFrame
+    explosive_by_hash_direction: pd.DataFrame
     by_motion: pd.DataFrame
-    down_distance: pd.DataFrame
     prior_play_features: pd.DataFrame
     sequences: pd.DataFrame
     trigger_sequences: pd.DataFrame
@@ -686,13 +706,9 @@ def analyze(df):
         len(df),
         int(df["EXPLOSIVE"].sum()),
         df[df["EXPLOSIVE"]].copy(),
-        group_rates(df, "OFF FORM"),
-        group_rates(situation, "SITUATION"),
-        group_rates(df, "HASH"),
-        group_rates(df, "PLAY DIR"),
-        group_rates(df, "PERSONNEL"),
+        group_rates_combo(df.assign(SITUATION=situation["SITUATION"]), ["OFF FORM", "SITUATION"]),
+        group_rates_combo(df, ["HASH", "PLAY DIR"]),
         group_rates(df, "MOTION"),
-        down_distance_tendencies(df),
         previous_play_features(df),
         explosive_sequence_analysis(df),
         trigger_sequence_analysis(df),
@@ -716,11 +732,8 @@ def write_report(report, output_dir="output"):
     out.mkdir(parents=True, exist_ok=True)
     pd.DataFrame([report.summary()]).to_csv(out / "summary.csv", index=False)
     report.explosive_detail.to_csv(out / "explosive_plays.csv", index=False)
-    report.by_formation.to_csv(out / "explosives_by_formation.csv", index=False)
-    report.by_situation.to_csv(out / "explosives_by_situation.csv", index=False)
-    report.by_hash.to_csv(out / "explosives_by_hash.csv", index=False)
-    report.by_direction.to_csv(out / "explosives_by_direction.csv", index=False)
-    report.by_personnel.to_csv(out / "explosives_by_personnel.csv", index=False)
+    report.explosive_by_formation_situation.to_csv(out / "explosives_by_formation_situation.csv", index=False)
+    report.explosive_by_hash_direction.to_csv(out / "explosives_by_hash_direction.csv", index=False)
     report.by_motion.to_csv(out / "explosives_by_motion.csv", index=False)
     report.prior_play_features.to_csv(out / "explosive_prior_play_features.csv", index=False)
     report.sequences.to_csv(out / "explosive_sequences.csv", index=False)
