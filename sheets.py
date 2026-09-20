@@ -125,12 +125,8 @@ def write_report(spreadsheet, report):
             report.down_distance_play_probabilities,
         ),
         (
-            "EXPLOSIVES BY FORMATION + SITUATION",
-            report.explosive_by_formation_situation,
-        ),
-        (
-            "EXPLOSIVES BY HASH + DIRECTION",
-            report.explosive_by_hash_direction,
+            "HASH + DOWN/DISTANCE PLAY PROBABILITIES",
+            report.hash_down_distance_play_probabilities,
         ),
         ("EXPLOSIVES BY MOTION", report.by_motion),
         ("REPEATED PLAY SEQUENCES", report.repeated_sequences),
