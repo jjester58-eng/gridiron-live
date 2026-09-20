@@ -172,9 +172,7 @@ def group_rates(df, column):
         return pd.DataFrame(columns=[column, "PLAYS", "EXPLOSIVES", "EXPLOSIVE_RATE"])
     out = work.groupby(column).agg(PLAYS=("EXPLOSIVE", "size"), EXPLOSIVES=("EXPLOSIVE", "sum")).reset_index()
     out["EXPLOSIVE_RATE"] = (out["EXPLOSIVES"] / out["PLAYS"] * 100).round(1)
-    # Only show categories that actually produced an explosive play.
     out = out[out["EXPLOSIVES"] > 0]
-    # Keep the coach-facing report concise.
     return out.sort_values(
         ["EXPLOSIVE_RATE", "EXPLOSIVES", "PLAYS"],
         ascending=False,
@@ -219,11 +217,7 @@ def previous_play_features(df):
 
 
 def trigger_sequence_analysis(df):
-    """Find what commonly follows meaningful trigger plays.
-
-    This is intentionally independent of explosive-play analysis. It looks at
-    every snap and reports factual follow-up patterns for common triggers.
-    """
+    """Find what commonly follows meaningful trigger plays."""
     if len(df) < 2:
         return pd.DataFrame()
 
@@ -273,7 +267,6 @@ def trigger_sequence_analysis(df):
     )
 
 
-
 def explosive_sequence_analysis(df):
     """Summarize the immediate pre-play context for explosive plays."""
     if len(df) < 2:
@@ -301,12 +294,14 @@ def explosive_sequence_analysis(df):
 def repeated_play_sequences(df, min_occurrences=2, max_play_gap=2):
     """Find repeated exact play sequences using real play order.
 
-    A sequence is only considered consecutive when the plays belong to the
-    same offensive possession (when ODK is available) and the PLAY # gap is
-    small. A gap of 1 is truly consecutive; a gap of 2 allows for a missing
-    bookkeeping/event row such as a penalty, timeout, or scoreboard event.
-    Larger gaps are not treated as a sequence, so an offensive play before a
-    defensive series cannot be incorrectly paired with a later play.
+    A sequence is only considered a sequence when the plays belong to the same
+    offensive series (when ODK is available) and PLAY # values are close.
+    PLAY # gaps of 1 are directly consecutive; a gap of 2 allows one
+    bookkeeping/event row between snaps. Larger gaps are excluded.
+
+    The report intentionally contains only information that is useful on the
+    scouting sheet: the sequence, how often it occurred, where it occurred,
+    the starting context, and what followed the sequence.
     """
     if len(df) < 2:
         return pd.DataFrame()
@@ -317,9 +312,6 @@ def repeated_play_sequences(df, min_occurrences=2, max_play_gap=2):
     rows = []
 
     def same_offensive_series(i, j):
-        # ODK is the strongest available possession/side indicator in the
-        # scouting sheet. If either value is blank, fall back to play-number
-        # continuity rather than inventing a possession boundary.
         a, b = clean(work.iloc[i].get("ODK", "")), clean(work.iloc[j].get("ODK", ""))
         return not a or not b or a.upper() == b.upper()
 
@@ -328,54 +320,98 @@ def repeated_play_sequences(df, min_occurrences=2, max_play_gap=2):
             return False
         a, b = work.iloc[i]["_PLAY_NUM"], work.iloc[j]["_PLAY_NUM"]
         if a is None or b is None or pd.isna(a) or pd.isna(b):
-            # If PLAY # is unavailable, do not call rows consecutive. This
-            # prevents dataframe row position from masquerading as play order.
             return False
         return 1 <= (b - a) <= max_play_gap
+
+    def context(row):
+        parts = []
+        situation = situation_bucket(row.get("DN", ""), row.get("DIST", ""))
+        if situation:
+            parts.append(situation)
+        for col in ("PERSONNEL", "OFF FORM", "MOTION"):
+            value = clean(row.get(col, ""))
+            if value:
+                parts.append(value)
+        return " | ".join(parts) if parts else "—"
 
     for length in (2, 3):
         if len(labels) < length:
             continue
+
         counts = {}
         examples = {}
+
         for i in range(len(labels) - length + 1):
             end = i + length - 1
             if not all(is_contiguous(k, k + 1) for k in range(i, end)):
                 continue
+
             sequence = tuple(labels[i:i + length])
             if any(not x or x == "UNKNOWN" for x in sequence):
                 continue
-            gap_values = [
+
+            key = sequence
+            counts[key] = counts.get(key, 0) + 1
+            examples.setdefault(key, [])
+
+            play_numbers = "→".join(
+                str(int(work.iloc[k]["_PLAY_NUM"])) for k in range(i, end + 1)
+            )
+            gaps = [
                 int(work.iloc[k + 1]["_PLAY_NUM"] - work.iloc[k]["_PLAY_NUM"])
                 for k in range(i, end)
             ]
-            key = sequence
-            counts[key] = counts.get(key, 0) + 1
-            examples.setdefault(key, []).append({
-                "PLAY_NUMBERS": "→".join(str(int(work.iloc[k]["_PLAY_NUM"])) for k in range(i, end + 1)),
-                "MAX_PLAY_GAP": max(gap_values),
+
+            next_play = None
+            if end + 1 < len(work) and is_contiguous(end, end + 1):
+                candidate = play_label(work.iloc[end + 1])
+                if candidate and candidate != "UNKNOWN":
+                    next_play = candidate
+
+            examples[key].append({
+                "PLAY_NUMBERS": play_numbers,
+                "CONTEXT": context(work.iloc[i]),
+                "NEXT_PLAY": next_play,
+                "MAX_PLAY_GAP": max(gaps),
             })
 
         for sequence, count in counts.items():
-            if count >= min_occurrences:
-                details = examples[sequence]
-                rows.append({
-                    "SEQUENCE_LENGTH": length,
-                    "SEQUENCE": " → ".join(sequence),
-                    "OCCURRENCES": count,
-                    "CONSECUTIVE": "YES" if all(d["MAX_PLAY_GAP"] == 1 for d in details) else "NEAR",
-                    "PLAY_NUMBERS": "; ".join(d["PLAY_NUMBERS"] for d in details[:10]),
-                })
+            if count < min_occurrences:
+                continue
+
+            details = examples[sequence]
+            followups = [d["NEXT_PLAY"] for d in details if d["NEXT_PLAY"]]
+            followup_text = "—"
+            if followups:
+                followup_counts = pd.Series(followups).value_counts()
+                top = followup_counts.index[0]
+                top_count = int(followup_counts.iloc[0])
+                rate = round(top_count / len(followups) * 100, 1)
+                followup_text = f"{top} ({top_count}/{len(followups)}, {rate}%)"
+
+            contexts = []
+            for detail in details:
+                if detail["CONTEXT"] not in contexts:
+                    contexts.append(detail["CONTEXT"])
+
+            rows.append({
+                "SEQUENCE": " → ".join(sequence),
+                "OCCURRENCES": count,
+                "PLAY_NUMBERS": "; ".join(d["PLAY_NUMBERS"] for d in details[:10]),
+                "CONTEXT": "; ".join(contexts[:5]),
+                "FOLLOW-UP / RESULT": followup_text,
+            })
 
     if not rows:
         return pd.DataFrame(columns=[
-            "SEQUENCE_LENGTH", "SEQUENCE", "OCCURRENCES", "CONSECUTIVE", "PLAY_NUMBERS"
+            "SEQUENCE", "OCCURRENCES", "PLAY_NUMBERS", "CONTEXT", "FOLLOW-UP / RESULT"
         ])
 
     return pd.DataFrame(rows).sort_values(
-        ["SEQUENCE_LENGTH", "OCCURRENCES"],
-        ascending=[True, False],
+        ["OCCURRENCES", "SEQUENCE"],
+        ascending=[False, True],
     ).reset_index(drop=True)
+
 
 def repeated_play_followups(df, min_occurrences=2):
     """Find what follows a play repeated two or three times consecutively."""
