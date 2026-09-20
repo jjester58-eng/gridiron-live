@@ -59,6 +59,9 @@ def write_report(spreadsheet, report):
         ("EXPLOSIVES BY MOTION", report.by_motion),
         ("PREVIOUS PLAY FEATURES", report.prior_play_features),
         ("EXPLOSIVE SEQUENCES", report.sequences),
+        ("WHAT FOLLOWS TRIGGERS", report.trigger_sequences),
+        ("REPEATED PLAY SEQUENCES", report.repeated_sequences),
+        ("REPEATED PLAY FOLLOW-UPS", report.repeated_followups),
     ]
     row = 1
     for title, section in sections:
