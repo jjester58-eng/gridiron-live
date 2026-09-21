@@ -224,7 +224,7 @@ def hash_down_distance_play_probabilities(df, min_occurrences=2, top_n=10):
     return (
         grouped.sort_values(
             ["HASH", "_ORDER", "FORMATION", "PROBABILITY", "COUNT", "PLAY"],
-            ascending=[True, True, False, False, True],
+            ascending=[True, True, False, False, False, True],
         )
         .groupby(["HASH", "DOWN & DISTANCE", "FORMATION"], group_keys=False)
         .head(top_n)
