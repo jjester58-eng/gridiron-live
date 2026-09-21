@@ -738,6 +738,178 @@ def situation_bucket(down, dist):
     return ""
 
 
+
+def field_zone(value):
+    """Map YARD LN to coach-friendly field zones.
+    
+    Supports the sheet's signed convention: negative = own territory,
+    positive = opponent territory, with 50 representing midfield.
+    """
+    yard = numeric(value)
+    if yard is None:
+        return ""
+    yard = abs(yard) if yard < 0 else yard
+
+    raw = numeric(value)
+    if raw < 0:
+        if yard <= 20:
+            return "OWN 1-20"
+        if yard <= 40:
+            return "OWN 21-40"
+        return "OWN 41-49"
+    if raw == 50:
+        return "MIDFIELD"
+    if raw >= 41:
+        return "MIDFIELD"
+    if raw >= 21:
+        return "OPP 21-40"
+    if raw >= 1:
+        return "RED ZONE"
+    return "MIDFIELD"
+
+
+def field_zone_efficiency(df):
+    """Measure how often the offense can move out of each field zone."""
+    rows = []
+    for i in range(len(df)):
+        zone = field_zone(df.iloc[i].get("YARD LN"))
+        if not zone:
+            continue
+
+        yards = numeric(df.iloc[i].get("GN/LS"))
+        if yards is None:
+            yards = result_yards(df.iloc[i].get("RESULT")) or 0
+
+        next_zone = ""
+        if i + 1 < len(df):
+            next_zone = field_zone(df.iloc[i + 1].get("YARD LN"))
+
+        rows.append({
+            "FIELD ZONE": zone,
+            "PLAYS": 1,
+            "YARDS": yards,
+            "ZONE EXIT": int(bool(next_zone and next_zone != zone)),
+        })
+
+    if not rows:
+        return pd.DataFrame(columns=[
+            "FIELD ZONE", "PLAYS", "YARDS", "YARDS/PLAY",
+            "ZONE EXITS", "EXIT RATE"
+        ])
+
+    work = pd.DataFrame(rows)
+    out = work.groupby("FIELD ZONE").agg(
+        PLAYS=("PLAYS", "sum"),
+        YARDS=("YARDS", "sum"),
+        ZONE_EXITS=("ZONE EXIT", "sum"),
+    ).reset_index()
+    out["YARDS/PLAY"] = (out["YARDS"] / out["PLAYS"]).round(1)
+    out["EXIT RATE"] = (out["ZONE EXITS"] / out["PLAYS"] * 100).round(1)
+
+    order = {
+        "OWN 1-20": 1,
+        "OWN 21-40": 2,
+        "OWN 41-49": 3,
+        "MIDFIELD": 4,
+        "OPP 21-40": 5,
+        "RED ZONE": 6,
+    }
+    out["_ORDER"] = out["FIELD ZONE"].map(order)
+    return out.sort_values("_ORDER").drop(columns="_ORDER").reset_index(drop=True)
+
+
+def third_down_efficiency(df):
+    """Measure 3rd-down conversion rate using distance-to-gain."""
+    rows = []
+    for i, row in df.iterrows():
+        down = numeric(row.get("DN"))
+        if down is None or int(down) != 3:
+            continue
+
+        dist = numeric(row.get("DIST"))
+        gain = numeric(row.get("GN/LS"))
+        if dist is None:
+            continue
+
+        if gain is None:
+            gain = result_yards(row.get("RESULT"))
+
+        converted = bool(gain is not None and gain >= dist)
+        rows.append({
+            "3RD DOWN": "3rd Down",
+            "ATTEMPTS": 1,
+            "CONVERSIONS": int(converted),
+        })
+
+    if not rows:
+        return pd.DataFrame(columns=[
+            "3RD DOWN", "ATTEMPTS", "CONVERSIONS", "CONVERSION RATE"
+        ])
+
+    out = pd.DataFrame(rows).groupby("3RD DOWN").agg(
+        ATTEMPTS=("ATTEMPTS", "sum"),
+        CONVERSIONS=("CONVERSIONS", "sum"),
+    ).reset_index()
+    out["CONVERSION RATE"] = (
+        out["CONVERSIONS"] / out["ATTEMPTS"] * 100
+    ).round(1)
+    return out
+
+
+def three_and_out_analysis(df):
+    """Count drives that go 1st -> 2nd -> 3rd, then start a new 1st down.
+    
+    Example: PLAY 50 = 1st, 51 = 2nd, 52 = 3rd, 61 = 1st = 3-and-out.
+    If another snap (such as 4th down) occurs before the next 1st down,
+    the sequence is not counted as a 3-and-out.
+    """
+    if len(df) < 4:
+        return pd.DataFrame([{
+            "3-AND-OUTS": 0,
+            "3RD-DOWN DRIVES": 0,
+            "3-AND-OUT RATE": 0.0,
+        }])
+
+    work = df.copy().reset_index(drop=True)
+    work["_PLAY_NUM"] = work["PLAY #"].map(numeric)
+
+    drives = []
+    starts = []
+    for i, row in work.iterrows():
+        if numeric(row.get("DN")) == 1:
+            starts.append(i)
+
+    for pos, start in enumerate(starts):
+        end = starts[pos + 1] if pos + 1 < len(starts) else len(work)
+        segment = work.iloc[start:end]
+        downs = [int(numeric(x)) for x in segment["DN"] if numeric(x) is not None]
+        if downs[:3] == [1, 2, 3]:
+            drives.append({
+                "PLAY NUMBERS": " → ".join(
+                    str(int(x)) for x in segment.iloc[:3]["_PLAY_NUM"]
+                    if pd.notna(x)
+                ),
+                "3-AND-OUT": int(len(segment) == 3),
+            })
+
+    if not drives:
+        return pd.DataFrame([{
+            "3-AND-OUTS": 0,
+            "3RD-DOWN DRIVES": 0,
+            "3-AND-OUT RATE": 0.0,
+        }])
+
+    work_drives = pd.DataFrame(drives)
+    third_down_drives = len(work_drives)
+    outs = int(work_drives["3-AND-OUT"].sum())
+
+    return pd.DataFrame([{
+        "3-AND-OUTS": outs,
+        "3RD-DOWN DRIVES": third_down_drives,
+        "3-AND-OUT RATE": round(outs / third_down_drives * 100, 1),
+    }])
+
+
 def play_result_type(row):
     """Normalize the result into a small, factual sequence category."""
     blob = play_blob(row)
@@ -843,7 +1015,9 @@ class TendencyReport:
     play_type_frequency: pd.DataFrame
     situation_sequences: pd.DataFrame
     frequency_by_personnel: pd.DataFrame
-    frequency_by_backfield: pd.DataFrame
+    field_zone_efficiency: pd.DataFrame
+    third_down_efficiency: pd.DataFrame
+    three_and_out_analysis: pd.DataFrame
     frequency_by_motion: pd.DataFrame
     frequency_by_scheme: pd.DataFrame
     frequency_by_direction: pd.DataFrame
@@ -891,6 +1065,9 @@ def analyze(df):
         hash_down_distance_play_probabilities(df),
         general_play_type_frequency(df),
         situation_sequence_analysis(df),
+        field_zone_efficiency(df),
+        third_down_efficiency(df),
+        three_and_out_analysis(df),
         frequency_profile(df, "PERSONNEL"),
         frequency_profile(df, "BACKFIELD"),
         frequency_profile(df, "MOTION"),
