@@ -1069,10 +1069,10 @@ class TendencyReport:
     hash_down_distance_play_probabilities: pd.DataFrame
     play_type_frequency: pd.DataFrame
     situation_sequences: pd.DataFrame
-    frequency_by_personnel: pd.DataFrame
     field_zone_efficiency: pd.DataFrame
     third_down_efficiency: pd.DataFrame
     three_and_out_analysis: pd.DataFrame
+    frequency_by_personnel: pd.DataFrame
     frequency_by_motion: pd.DataFrame
     frequency_by_scheme: pd.DataFrame
     frequency_by_direction: pd.DataFrame
