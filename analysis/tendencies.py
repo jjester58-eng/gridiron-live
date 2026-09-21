@@ -857,13 +857,17 @@ def third_down_efficiency(df):
 
 
 def three_and_out_analysis(df):
-    """Count drives that go 1st -> 2nd -> 3rd, then start a new 1st down.
-    
-    Example: PLAY 50 = 1st, 51 = 2nd, 52 = 3rd, 61 = 1st = 3-and-out.
-    If another snap (such as 4th down) occurs before the next 1st down,
-    the sequence is not counted as a 3-and-out.
+    """Identify 3-and-outs using play-number series and actual snaps.
+
+    PLAY # is treated as the series/drive marker with its final digit being
+    the snap within that series. For example, 50-51-52 followed by 61 is a
+    3-and-out; 50-51-52 followed by 53 is not.
+
+    Administrative rows such as timeouts, scoreboard/clock entries, and
+    penalty-only entries are ignored. A penalty attached to an actual play
+    still counts as a snap, because the play occurred.
     """
-    if len(df) < 4:
+    if df.empty:
         return pd.DataFrame([{
             "3-AND-OUTS": 0,
             "3RD-DOWN DRIVES": 0,
@@ -873,24 +877,76 @@ def three_and_out_analysis(df):
     work = df.copy().reset_index(drop=True)
     work["_PLAY_NUM"] = work["PLAY #"].map(numeric)
 
-    drives = []
-    starts = []
-    for i, row in work.iterrows():
-        if numeric(row.get("DN")) == 1:
-            starts.append(i)
+    def series_key(play_num):
+        if play_num is None or pd.isna(play_num):
+            return None
+        value = int(play_num)
+        return str(value)[:-1] if abs(value) >= 10 else ""
 
-    for pos, start in enumerate(starts):
-        end = starts[pos + 1] if pos + 1 < len(starts) else len(work)
-        segment = work.iloc[start:end]
-        downs = [int(numeric(x)) for x in segment["DN"] if numeric(x) is not None]
-        if downs[:3] == [1, 2, 3]:
-            drives.append({
-                "PLAY NUMBERS": " → ".join(
-                    str(int(x)) for x in segment.iloc[:3]["_PLAY_NUM"]
-                    if pd.notna(x)
-                ),
-                "3-AND-OUT": int(len(segment) == 3),
-            })
+    def is_administrative(row):
+        blob = play_blob(row)
+        admin_terms = [
+            "TIMEOUT", "SCOREBOARD", "CLOCK", "QUARTER", "HALFTIME",
+            "END OF HALF", "END OF GAME", "KNEEL", "NO PLAY"
+        ]
+        if any(term in blob for term in admin_terms):
+            return True
+
+        # A penalty-only entry is bookkeeping rather than an offensive snap.
+        # If it also contains a recognizable run/pass/sack, keep it as a snap.
+        if is_penalty(row) and classify_play(row) == "OTHER":
+            return True
+
+        return False
+
+    # Keep only actual offensive snaps with a valid down. This allows timeout,
+    # scoreboard, and similar rows to sit between snaps without affecting
+    # the drive calculation.
+    snaps = []
+    for _, row in work.iterrows():
+        down = numeric(row.get("DN"))
+        if down is None or int(down) not in {1, 2, 3, 4}:
+            continue
+        if is_administrative(row):
+            continue
+
+        play_num = numeric(row.get("_PLAY_NUM"))
+        key = series_key(play_num)
+        if key is None:
+            continue
+
+        snaps.append({
+            "PLAY_NUM": int(play_num),
+            "SERIES": key,
+            "DOWN": int(down),
+        })
+
+    if not snaps:
+        return pd.DataFrame([{
+            "3-AND-OUTS": 0,
+            "3RD-DOWN DRIVES": 0,
+            "3-AND-OUT RATE": 0.0,
+        }])
+
+    snap_df = pd.DataFrame(snaps)
+    drives = []
+
+    # Each PLAY # series is a drive/series in the coach's numbering convention.
+    for series, segment in snap_df.groupby("SERIES", sort=False):
+        segment = segment.reset_index(drop=True)
+        downs = segment["DOWN"].tolist()
+
+        if downs[:3] != [1, 2, 3]:
+            continue
+
+        # Any fourth snap in the same series means the offense continued the
+        # possession, so it was not a 3-and-out.
+        is_three_and_out = len(segment) == 3
+
+        drives.append({
+            "PLAY NUMBERS": " → ".join(str(x) for x in segment["PLAY_NUM"].iloc[:3]),
+            "3-AND-OUT": int(is_three_and_out),
+        })
 
     if not drives:
         return pd.DataFrame([{
@@ -899,16 +955,15 @@ def three_and_out_analysis(df):
             "3-AND-OUT RATE": 0.0,
         }])
 
-    work_drives = pd.DataFrame(drives)
-    third_down_drives = len(work_drives)
-    outs = int(work_drives["3-AND-OUT"].sum())
+    drive_df = pd.DataFrame(drives)
+    third_down_drives = len(drive_df)
+    outs = int(drive_df["3-AND-OUT"].sum())
 
     return pd.DataFrame([{
         "3-AND-OUTS": outs,
         "3RD-DOWN DRIVES": third_down_drives,
         "3-AND-OUT RATE": round(outs / third_down_drives * 100, 1),
     }])
-
 
 def play_result_type(row):
     """Normalize the result into a small, factual sequence category."""
