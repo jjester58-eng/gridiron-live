@@ -818,42 +818,47 @@ def field_zone_efficiency(df):
     return out.sort_values("_ORDER").drop(columns="_ORDER").reset_index(drop=True)
 
 
-def third_down_efficiency(df):
-    """Measure 3rd-down conversion rate using distance-to-gain."""
+def down_efficiency(df):
+    """Measure first-down conversion efficiency on every down."""
     rows = []
-    for i, row in df.iterrows():
+    work = df.reset_index(drop=True)
+    for i, row in work.iterrows():
         down = numeric(row.get("DN"))
-        if down is None or int(down) != 3:
+        if down is None or int(down) not in {1, 2, 3, 4}:
             continue
-
+        down = int(down)
         dist = numeric(row.get("DIST"))
         gain = numeric(row.get("GN/LS"))
-        if dist is None:
-            continue
-
         if gain is None:
             gain = result_yards(row.get("RESULT"))
-
-        converted = bool(gain is not None and gain >= dist)
-        rows.append({
-            "3RD DOWN": "3rd Down",
-            "ATTEMPTS": 1,
-            "CONVERSIONS": int(converted),
-        })
-
+        converted = bool(dist is not None and gain is not None and gain >= dist)
+        if not converted:
+            for j in range(i + 1, len(work)):
+                next_down = numeric(work.iloc[j].get("DN"))
+                if next_down is None:
+                    continue
+                if int(next_down) in {1, 2, 3, 4}:
+                    converted = int(next_down) == 1
+                    break
+        suffix = {1: "st", 2: "nd", 3: "rd", 4: "th"}[down]
+        rows.append({"DOWN": f"{down}{suffix} Down", "ATTEMPTS": 1, "CONVERSIONS": int(converted)})
     if not rows:
-        return pd.DataFrame(columns=[
-            "3RD DOWN", "ATTEMPTS", "CONVERSIONS", "CONVERSION RATE"
-        ])
-
-    out = pd.DataFrame(rows).groupby("3RD DOWN").agg(
-        ATTEMPTS=("ATTEMPTS", "sum"),
-        CONVERSIONS=("CONVERSIONS", "sum"),
+        return pd.DataFrame(columns=["DOWN", "ATTEMPTS", "CONVERSIONS", "CONVERSION RATE"])
+    out = pd.DataFrame(rows).groupby("DOWN").agg(
+        ATTEMPTS=("ATTEMPTS", "sum"), CONVERSIONS=("CONVERSIONS", "sum")
     ).reset_index()
-    out["CONVERSION RATE"] = (
-        out["CONVERSIONS"] / out["ATTEMPTS"] * 100
-    ).round(1)
-    return out
+    out["CONVERSION RATE"] = (out["CONVERSIONS"] / out["ATTEMPTS"] * 100).round(1)
+    order = {"1st Down": 1, "2nd Down": 2, "3rd Down": 3, "4th Down": 4}
+    out["_ORDER"] = out["DOWN"].map(order)
+    return out.sort_values("_ORDER").drop(columns="_ORDER").reset_index(drop=True)
+
+
+def third_down_efficiency(df):
+    """Backward-compatible 3rd-down view."""
+    out = down_efficiency(df)
+    if out.empty:
+        return pd.DataFrame(columns=["3RD DOWN", "ATTEMPTS", "CONVERSIONS", "CONVERSION RATE"])
+    return out[out["DOWN"] == "3rd Down"].rename(columns={"DOWN": "3RD DOWN"}).reset_index(drop=True)
 
 
 def three_and_out_analysis(df):
@@ -1122,7 +1127,7 @@ def analyze(df):
         general_play_type_frequency(df),
         situation_sequence_analysis(df),
         field_zone_efficiency(df),
-        third_down_efficiency(df),
+        down_efficiency(df),
         three_and_out_analysis(df),
         frequency_profile(df, "PERSONNEL"),
         frequency_profile(df, "BACKFIELD"),
