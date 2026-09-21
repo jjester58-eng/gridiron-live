@@ -124,7 +124,6 @@ def write_report(spreadsheet, report):
             "HASH + DOWN/DISTANCE PLAY PROBABILITIES",
             report.hash_down_distance_play_probabilities,
         ),
-        ("EXPLOSIVES BY MOTION", report.by_motion),
         ("REPEATED PLAY SEQUENCES", report.repeated_sequences),
         ("REPEATED PLAY FOLLOW-UPS", report.repeated_followups),
         (
@@ -132,16 +131,8 @@ def write_report(spreadsheet, report):
             report.frequency_by_situation,
         ),
         (
-            "HIGH-FREQUENCY — PERSONNEL + YARDS",
-            report.frequency_by_personnel,
-        ),
-        (
             "HIGH-FREQUENCY — BACKFIELD + YARDS",
             report.frequency_by_backfield,
-        ),
-        (
-            "HIGH-FREQUENCY — MOTION + YARDS",
-            report.frequency_by_motion,
         ),
         (
             "HIGH-FREQUENCY — SCHEME + YARDS",
