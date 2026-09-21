@@ -169,12 +169,11 @@ def down_distance_tendencies(df):
 
 
 def hash_down_distance_play_probabilities(df, min_occurrences=1, top_n=3):
-    """Show the top formations and plays for each hash + down/distance situation.
+    """Show the top formation/play combinations for each hash + situation.
 
-    This is intentionally broader than an exact formation/play combination.
-    It gives coaches the top three formations and top three plays within the
-    same hash and down/distance bucket, even when an individual combination
-    occurred only once.
+    This is intentionally broader than requiring repeated exact combinations.
+    It ranks the most-used formation + play pairings within each hash and
+    down/distance bucket, then displays the top three pairings side by side.
     """
     rows = []
     for _, row in df.iterrows():
@@ -196,7 +195,7 @@ def hash_down_distance_play_probabilities(df, min_occurrences=1, top_n=3):
     if not rows:
         return pd.DataFrame(columns=[
             "HASH", "DOWN & DISTANCE", "PLAYS",
-            "TOP FORMATIONS", "TOP PLAYS"
+            "FORMATION 1", "FORMATION 2", "FORMATION 3"
         ])
 
     work = pd.DataFrame(rows)
@@ -207,31 +206,30 @@ def hash_down_distance_play_probabilities(df, min_occurrences=1, top_n=3):
     ):
         total = len(group)
 
-        formation_counts = (
-            group[group["FORMATION"] != "UNKNOWN"]["FORMATION"]
-            .value_counts()
-            .head(top_n)
-        )
-        play_counts = (
-            group[group["PLAY"] != "UNKNOWN"]["PLAY"]
-            .value_counts()
+        combo_counts = (
+            group[
+                (group["FORMATION"] != "UNKNOWN") &
+                (group["PLAY"] != "UNKNOWN")
+            ]
+            .groupby(["FORMATION", "PLAY"])
+            .size()
+            .sort_values(ascending=False)
             .head(top_n)
         )
 
-        def format_top(counts):
-            if counts.empty:
-                return "—"
-            return " | ".join(
-                f"{label} ({count}/{total}, {round(count / total * 100, 1)}%)"
-                for label, count in counts.items()
-            )
+        top_combinations = [
+            f"{formation}/{play} ({count}/{total}, {round(count / total * 100, 1)}%)"
+            for (formation, play), count in combo_counts.items()
+        ]
+        top_combinations += ["—"] * (top_n - len(top_combinations))
 
         summary_rows.append({
             "HASH": hash_value,
             "DOWN & DISTANCE": situation,
             "PLAYS": total,
-            "TOP FORMATIONS": format_top(formation_counts),
-            "TOP PLAYS": format_top(play_counts),
+            "FORMATION 1": top_combinations[0],
+            "FORMATION 2": top_combinations[1],
+            "FORMATION 3": top_combinations[2],
         })
 
     out = pd.DataFrame(summary_rows)
