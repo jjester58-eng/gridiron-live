@@ -200,7 +200,7 @@ def hash_down_distance_play_probabilities(df, min_occurrences=2, top_n=10):
     )
 
     totals = grouped.groupby(
-        ["HASH", "DOWN & DISTANCE"]
+        ["HASH", "DOWN & DISTANCE", "FORMATION"]
     )["COUNT"].transform("sum")
     grouped["PROBABILITY"] = (
         grouped["COUNT"] / totals * 100
@@ -819,7 +819,6 @@ class TendencyReport:
     repeated_followups: pd.DataFrame
     frequency_by_formation: pd.DataFrame
     frequency_by_situation: pd.DataFrame
-    down_distance_play_probabilities: pd.DataFrame
     hash_down_distance_play_probabilities: pd.DataFrame
     play_type_frequency: pd.DataFrame
     situation_sequences: pd.DataFrame
