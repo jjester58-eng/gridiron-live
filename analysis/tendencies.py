@@ -804,7 +804,7 @@ def field_zone_efficiency(df):
         ZONE_EXITS=("ZONE EXIT", "sum"),
     ).reset_index()
     out["YARDS/PLAY"] = (out["YARDS"] / out["PLAYS"]).round(1)
-    out["EXIT RATE"] = (out["ZONE EXITS"] / out["PLAYS"] * 100).round(1)
+    out["EXIT RATE"] = (out["ZONE_EXITS"] / out["PLAYS"] * 100).round(1)
 
     order = {
         "OWN 1-20": 1,
