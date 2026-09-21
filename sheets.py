@@ -130,10 +130,9 @@ def write_report(spreadsheet, report):
             "HIGH-FREQUENCY — SITUATIONS + YARDS",
             report.frequency_by_situation,
         ),
-        (
-            "HIGH-FREQUENCY — BACKFIELD + YARDS",
-            report.frequency_by_backfield,
-        ),
+        ("PLAY EFFICIENCY — FIELD ZONES", report.field_zone_efficiency),
+        ("3RD DOWN EFFICIENCY", report.third_down_efficiency),
+        ("3-AND-OUTS", report.three_and_out_analysis),
         (
             "HIGH-FREQUENCY — SCHEME + YARDS",
             report.frequency_by_scheme,
