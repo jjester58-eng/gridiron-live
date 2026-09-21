@@ -141,6 +141,11 @@ def write_report(spreadsheet, report):
         row += 3
 
     sections = [
+        ("PLAY EFFICIENCY — FIELD ZONES", report.field_zone_efficiency),
+        (
+            "HIGH-FREQUENCY — SCHEME + YARDS",
+            report.frequency_by_scheme,
+        ),
         (
             "HASH + DOWN/DISTANCE PLAY PROBABILITIES",
             report.hash_down_distance_play_probabilities,
@@ -150,11 +155,6 @@ def write_report(spreadsheet, report):
         (
             "HIGH-FREQUENCY — SITUATIONS + YARDS",
             report.frequency_by_situation,
-        ),
-        ("PLAY EFFICIENCY — FIELD ZONES", report.field_zone_efficiency),
-        (
-            "HIGH-FREQUENCY — SCHEME + YARDS",
-            report.frequency_by_scheme,
         ),
         ("RUN / PASS / QB RUN / SACK YARDS", report.run_pass_yards),
         (
