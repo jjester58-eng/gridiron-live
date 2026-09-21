@@ -167,92 +167,34 @@ def down_distance_tendencies(df):
 
 
 
-def down_distance_play_probabilities(df, min_occurrences=2, top_n=10):
-    """Show the most common exact play calls within each down/distance bucket."""
-    rows = []
-    for _, row in df.iterrows():
-        situation = situation_bucket(row.get("DN", ""), row.get("DIST", ""))
-        if not situation:
-            continue
-
-        play = play_label(row)
-        if not play or play == "UNKNOWN":
-            continue
-
-        rows.append({
-            "DOWN & DISTANCE": situation,
-            "PLAY": play,
-        })
-
-    if not rows:
-        return pd.DataFrame(columns=[
-            "DOWN & DISTANCE", "PLAY", "COUNT", "PROBABILITY"
-        ])
-
-    work = pd.DataFrame(rows)
-    grouped = (
-        work.groupby(["DOWN & DISTANCE", "PLAY"])
-        .size()
-        .reset_index(name="COUNT")
-    )
-
-    totals = grouped.groupby("DOWN & DISTANCE")["COUNT"].transform("sum")
-    grouped["PROBABILITY"] = (
-        grouped["COUNT"] / totals * 100
-    ).round(1)
-
-    grouped = grouped[grouped["COUNT"] >= min_occurrences]
-
-    order = {
-        "1st & Long (10+)": 1,
-        "1st & Short (1-9)": 2,
-        "2nd & Long (7+)": 3,
-        "2nd & Medium (4-6)": 4,
-        "2nd & Short (1-3)": 5,
-        "3rd & Long (7+)": 6,
-        "3rd & Medium (4-6)": 7,
-        "3rd & Short (1-3)": 8,
-        "4th Down": 9,
-    }
-    grouped["_ORDER"] = grouped["DOWN & DISTANCE"].map(order)
-
-    return (
-        grouped.sort_values(
-            ["_ORDER", "PROBABILITY", "COUNT", "PLAY"],
-            ascending=[True, False, False, True],
-        )
-        .groupby("DOWN & DISTANCE", group_keys=False)
-        .head(top_n)
-        .drop(columns="_ORDER")
-        .reset_index(drop=True)
-    )
-
 
 def hash_down_distance_play_probabilities(df, min_occurrences=2, top_n=10):
-    """Show play probabilities by hash and down/distance situation."""
+    """Show play probabilities by hash, formation, and down/distance situation."""
     rows = []
     for _, row in df.iterrows():
         hash_value = clean(row.get("HASH", ""))
         situation = situation_bucket(row.get("DN", ""), row.get("DIST", ""))
+        formation = clean(row.get("OFF FORM", ""))
         play = play_label(row)
 
-        if not hash_value or not situation or not play or play == "UNKNOWN":
+        if not hash_value or not formation or not situation or not play or play == "UNKNOWN":
             continue
 
         rows.append({
             "HASH": hash_value,
             "DOWN & DISTANCE": situation,
+            "FORMATION": formation,
             "PLAY": play,
         })
 
     if not rows:
         return pd.DataFrame(columns=[
-            "HASH", "DOWN & DISTANCE", "PLAY", "COUNT", "PROBABILITY"
+            "HASH", "DOWN & DISTANCE", "FORMATION", "PLAY", "COUNT", "PROBABILITY"
         ])
 
     work = pd.DataFrame(rows)
     grouped = (
-        work.groupby(["HASH", "DOWN & DISTANCE", "PLAY"])
+        work.groupby(["HASH", "DOWN & DISTANCE", "FORMATION", "PLAY"])
         .size()
         .reset_index(name="COUNT")
     )
@@ -281,10 +223,10 @@ def hash_down_distance_play_probabilities(df, min_occurrences=2, top_n=10):
 
     return (
         grouped.sort_values(
-            ["HASH", "_ORDER", "PROBABILITY", "COUNT", "PLAY"],
+            ["HASH", "_ORDER", "FORMATION", "PROBABILITY", "COUNT", "PLAY"],
             ascending=[True, True, False, False, True],
         )
-        .groupby(["HASH", "DOWN & DISTANCE"], group_keys=False)
+        .groupby(["HASH", "DOWN & DISTANCE", "FORMATION"], group_keys=False)
         .head(top_n)
         .drop(columns="_ORDER")
         .reset_index(drop=True)
@@ -927,7 +869,6 @@ def analyze(df):
         repeated_play_followups(df),
         frequency_profile(df, "OFF FORM"),
         frequency_profile(situation, "SITUATION"),
-        down_distance_play_probabilities(df),
         hash_down_distance_play_probabilities(df),
         general_play_type_frequency(df),
         situation_sequence_analysis(df),
