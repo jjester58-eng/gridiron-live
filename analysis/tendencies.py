@@ -1073,6 +1073,7 @@ class TendencyReport:
     third_down_efficiency: pd.DataFrame
     three_and_out_analysis: pd.DataFrame
     frequency_by_personnel: pd.DataFrame
+    frequency_by_backfield: pd.DataFrame
     frequency_by_motion: pd.DataFrame
     frequency_by_scheme: pd.DataFrame
     frequency_by_direction: pd.DataFrame
