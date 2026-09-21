@@ -131,17 +131,12 @@ def write_report(spreadsheet, report):
             report.frequency_by_situation,
         ),
         ("PLAY EFFICIENCY — FIELD ZONES", report.field_zone_efficiency),
-        ("3RD DOWN EFFICIENCY", report.third_down_efficiency),
+        ("DOWN EFFICIENCY", report.third_down_efficiency),
         ("3-AND-OUTS", report.three_and_out_analysis),
         (
             "HIGH-FREQUENCY — SCHEME + YARDS",
             report.frequency_by_scheme,
         ),
-        (
-            "HIGH-FREQUENCY — DIRECTION + YARDS",
-            report.frequency_by_direction,
-        ),
-        ("HIGH-FREQUENCY — PLAY TYPES", report.play_type_frequency),
         ("RUN / PASS / QB RUN / SACK YARDS", report.run_pass_yards),
         (
             "SITUATION → NEXT PLAY SEQUENCES",
