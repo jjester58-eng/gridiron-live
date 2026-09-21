@@ -112,12 +112,33 @@ def write_report(spreadsheet, report):
     ]
     worksheet.update([top_line], "A1")
 
-    # Put the recurring completion/comment patterns immediately after the
-    # identity/stat line, before the other tendency sections.
-    worksheet.update([["COMPLETIONS + COMMENTS"]], "A3")
+    # Put the most immediately useful down/drive efficiency information
+    # directly after the identity/stat line.
+    sections = [
+        ("DOWN EFFICIENCY", report.third_down_efficiency),
+        ("3-AND-OUTS", report.three_and_out_analysis),
+    ]
+
+    row = 3
+    for title, section in sections:
+        worksheet.update([[title]], f"A{row}")
+        row += 1
+        values = dataframe_values(section)
+        if values:
+            worksheet.update(values, f"A{row}")
+            row += len(values) + 2
+        else:
+            worksheet.update([["No data"]], f"A{row}")
+            row += 3
+
+    # Completion/comment patterns follow the down/drive efficiency summary.
+    worksheet.update([["COMPLETIONS + COMMENTS"]], f"A{row}")
     completion_values = dataframe_values(report.completed_comment_patterns)
     if completion_values:
-        worksheet.update(completion_values, "A4")
+        worksheet.update(completion_values, f"A{row + 1}")
+        row += len(completion_values) + 4
+    else:
+        row += 3
 
     sections = [
         (
@@ -131,8 +152,6 @@ def write_report(spreadsheet, report):
             report.frequency_by_situation,
         ),
         ("PLAY EFFICIENCY — FIELD ZONES", report.field_zone_efficiency),
-        ("DOWN EFFICIENCY", report.third_down_efficiency),
-        ("3-AND-OUTS", report.three_and_out_analysis),
         (
             "HIGH-FREQUENCY — SCHEME + YARDS",
             report.frequency_by_scheme,
@@ -144,7 +163,6 @@ def write_report(spreadsheet, report):
         ),
     ]
 
-    row = 3 + len(completion_values) + 3
     for title, section in sections:
         worksheet.update([[title]], f"A{row}")
         row += 1
