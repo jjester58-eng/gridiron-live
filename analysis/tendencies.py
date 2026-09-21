@@ -168,8 +168,14 @@ def down_distance_tendencies(df):
 
 
 
-def hash_down_distance_play_probabilities(df, min_occurrences=2, top_n=10):
-    """Show play probabilities by hash, formation, and down/distance situation."""
+def hash_down_distance_play_probabilities(df, min_occurrences=1, top_n=3):
+    """Show the top formations and plays for each hash + down/distance situation.
+
+    This is intentionally broader than an exact formation/play combination.
+    It gives coaches the top three formations and top three plays within the
+    same hash and down/distance bucket, even when an individual combination
+    occurred only once.
+    """
     rows = []
     for _, row in df.iterrows():
         hash_value = clean(row.get("HASH", ""))
@@ -177,36 +183,58 @@ def hash_down_distance_play_probabilities(df, min_occurrences=2, top_n=10):
         formation = clean(row.get("OFF FORM", ""))
         play = play_label(row)
 
-        if not hash_value or not formation or not situation or not play or play == "UNKNOWN":
+        if not hash_value or not situation:
             continue
 
         rows.append({
             "HASH": hash_value,
             "DOWN & DISTANCE": situation,
-            "FORMATION": formation,
-            "PLAY": play,
+            "FORMATION": formation or "UNKNOWN",
+            "PLAY": play if play and play != "UNKNOWN" else "UNKNOWN",
         })
 
     if not rows:
         return pd.DataFrame(columns=[
-            "HASH", "DOWN & DISTANCE", "FORMATION", "PLAY", "COUNT", "PROBABILITY"
+            "HASH", "DOWN & DISTANCE", "PLAYS",
+            "TOP FORMATIONS", "TOP PLAYS"
         ])
 
     work = pd.DataFrame(rows)
-    grouped = (
-        work.groupby(["HASH", "DOWN & DISTANCE", "FORMATION", "PLAY"])
-        .size()
-        .reset_index(name="COUNT")
-    )
 
-    totals = grouped.groupby(
-        ["HASH", "DOWN & DISTANCE", "FORMATION"]
-    )["COUNT"].transform("sum")
-    grouped["PROBABILITY"] = (
-        grouped["COUNT"] / totals * 100
-    ).round(1)
+    summary_rows = []
+    for (hash_value, situation), group in work.groupby(
+        ["HASH", "DOWN & DISTANCE"]
+    ):
+        total = len(group)
 
-    grouped = grouped[grouped["COUNT"] >= min_occurrences]
+        formation_counts = (
+            group[group["FORMATION"] != "UNKNOWN"]["FORMATION"]
+            .value_counts()
+            .head(top_n)
+        )
+        play_counts = (
+            group[group["PLAY"] != "UNKNOWN"]["PLAY"]
+            .value_counts()
+            .head(top_n)
+        )
+
+        def format_top(counts):
+            if counts.empty:
+                return "—"
+            return " | ".join(
+                f"{label} ({count}/{total}, {round(count / total * 100, 1)}%)"
+                for label, count in counts.items()
+            )
+
+        summary_rows.append({
+            "HASH": hash_value,
+            "DOWN & DISTANCE": situation,
+            "PLAYS": total,
+            "TOP FORMATIONS": format_top(formation_counts),
+            "TOP PLAYS": format_top(play_counts),
+        })
+
+    out = pd.DataFrame(summary_rows)
 
     order = {
         "1st & Long (10+)": 1,
@@ -219,18 +247,12 @@ def hash_down_distance_play_probabilities(df, min_occurrences=2, top_n=10):
         "3rd & Short (1-3)": 8,
         "4th Down": 9,
     }
-    grouped["_ORDER"] = grouped["DOWN & DISTANCE"].map(order)
+    out["_ORDER"] = out["DOWN & DISTANCE"].map(order)
 
-    return (
-        grouped.sort_values(
-            ["HASH", "_ORDER", "FORMATION", "PROBABILITY", "COUNT", "PLAY"],
-            ascending=[True, True, False, False, False, True],
-        )
-        .groupby(["HASH", "DOWN & DISTANCE", "FORMATION"], group_keys=False)
-        .head(top_n)
-        .drop(columns="_ORDER")
-        .reset_index(drop=True)
-    )
+    return out.sort_values(
+        ["HASH", "_ORDER"],
+        ascending=[True, True],
+    ).drop(columns="_ORDER").reset_index(drop=True)
 
 def group_rates(df, column):
     work = df[df[column].map(clean) != ""].copy()
