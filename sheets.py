@@ -121,10 +121,6 @@ def write_report(spreadsheet, report):
 
     sections = [
         (
-            "DOWN & DISTANCE PLAY PROBABILITIES",
-            report.down_distance_play_probabilities,
-        ),
-        (
             "HASH + DOWN/DISTANCE PLAY PROBABILITIES",
             report.hash_down_distance_play_probabilities,
         ),
