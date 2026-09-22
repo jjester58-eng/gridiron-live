@@ -1179,10 +1179,6 @@ def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
 
     grouped = grouped[grouped["FOLLOWING_COUNT"] >= min_occurrences]
 
-    down_order = {
-        "1": 1, "2": 2, "3": 3, "4": 4,
-        "1.0": 1, "2.0": 2, "3.0": 3, "4.0": 4,
-    }
     situation_order = {
         "1st & Long (10+)": 1,
         "1st & Short (1-9)": 2,
@@ -1196,14 +1192,7 @@ def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
     }
 
     grouped["_SITUATION_ORDER"] = grouped["PREVIOUS_SITUATION"].map(situation_order).fillna(99)
-    grouped["_NEXT_DOWN_ORDER"] = grouped["NEXT_DOWN & DISTANCE"].map(\
-        lambda value: {\
-            "1st & Long (10+)": 1, "1st & Short (1-9)": 2,\
-            "2nd & Long (7+)": 3, "2nd & Medium (4-6)": 4, "2nd & Short (1-3)": 5,\
-            "3rd & Long (7+)": 6, "3rd & Medium (4-6)": 7, "3rd & Short (1-3)": 8,\
-            "4th Down": 9,\
-        }.get(clean(value), 99)\
-    )
+    grouped["_NEXT_DOWN_ORDER"] = grouped["NEXT_DOWN & DISTANCE"].map(situation_order).fillna(99)
 
     return (
         grouped.sort_values(
