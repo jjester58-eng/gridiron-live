@@ -401,6 +401,123 @@ def explosive_sequence_analysis(df):
     return out.groupby(keys).size().reset_index(name="EXPLOSIVE_COUNT").sort_values("EXPLOSIVE_COUNT", ascending=False)
 
 
+def sequence_play_type(row):
+    """Normalize a snap to RUN or PASS for sequencing analysis."""
+    category = classify_play(row)
+    if category in {"RUN", "QB RUN"}:
+        return "RUN"
+    if category in {"PASS", "SACK"}:
+        return "PASS"
+    return ""
+
+
+def normalize_direction(value):
+    """Normalize play direction to LEFT/RIGHT when possible."""
+    text = clean(value).upper()
+    if not text:
+        return ""
+    if re.search(r"\b(LEFT|L|LT|LW|WEAK|W)\b", text):
+        return "LEFT"
+    if re.search(r"\b(RIGHT|R|RT|RW|STRONG|S)\b", text):
+        return "RIGHT"
+    return ""
+
+
+def sequence_continuity(df, i, j, max_play_gap=2):
+    """Require adjacent snaps in the same offensive series when possible."""
+    if j != i + 1:
+        return False
+
+    a_odk = clean(df.iloc[i].get("ODK", ""))
+    b_odk = clean(df.iloc[j].get("ODK", ""))
+    if a_odk and b_odk and a_odk.upper() != b_odk.upper():
+        return False
+
+    a = numeric(df.iloc[i].get("PLAY #"))
+    b = numeric(df.iloc[j].get("PLAY #"))
+    if a is None or b is None:
+        return False
+    return 1 <= (b - a) <= max_play_gap
+
+
+def run_pass_sequences(df, min_occurrences=2):
+    """Show what run/pass category follows each run/pass category."""
+    if len(df) < 2:
+        return pd.DataFrame()
+
+    rows = []
+    for i in range(len(df) - 1):
+        if not sequence_continuity(df, i, i + 1):
+            continue
+        previous = sequence_play_type(df.iloc[i])
+        following = sequence_play_type(df.iloc[i + 1])
+        if not previous or not following:
+            continue
+        rows.append({
+            "PREVIOUS PLAY TYPE": previous,
+            "NEXT PLAY TYPE": following,
+        })
+
+    if not rows:
+        return pd.DataFrame(columns=[
+            "PREVIOUS PLAY TYPE", "NEXT PLAY TYPE",
+            "OCCURRENCES", "TOTAL AFTER PREVIOUS", "FOLLOWING RATE"
+        ])
+
+    work = pd.DataFrame(rows)
+    out = (
+        work.groupby(["PREVIOUS PLAY TYPE", "NEXT PLAY TYPE"])
+        .size()
+        .reset_index(name="OCCURRENCES")
+    )
+    totals = out.groupby("PREVIOUS PLAY TYPE")["OCCURRENCES"].transform("sum")
+    out["TOTAL AFTER PREVIOUS"] = totals
+    out["FOLLOWING RATE"] = (out["OCCURRENCES"] / totals * 100).round(1)
+    return out[out["OCCURRENCES"] >= min_occurrences].sort_values(
+        ["PREVIOUS PLAY TYPE", "FOLLOWING RATE", "OCCURRENCES"],
+        ascending=[True, False, False],
+    ).reset_index(drop=True)
+
+
+def left_right_sequences(df, min_occurrences=2):
+    """Show what direction follows each LEFT/RIGHT play direction."""
+    if len(df) < 2:
+        return pd.DataFrame()
+
+    rows = []
+    for i in range(len(df) - 1):
+        if not sequence_continuity(df, i, i + 1):
+            continue
+        previous = normalize_direction(df.iloc[i].get("PLAY DIR", ""))
+        following = normalize_direction(df.iloc[i + 1].get("PLAY DIR", ""))
+        if not previous or not following:
+            continue
+        rows.append({
+            "PREVIOUS DIRECTION": previous,
+            "NEXT DIRECTION": following,
+        })
+
+    if not rows:
+        return pd.DataFrame(columns=[
+            "PREVIOUS DIRECTION", "NEXT DIRECTION",
+            "OCCURRENCES", "TOTAL AFTER PREVIOUS", "FOLLOWING RATE"
+        ])
+
+    work = pd.DataFrame(rows)
+    out = (
+        work.groupby(["PREVIOUS DIRECTION", "NEXT DIRECTION"])
+        .size()
+        .reset_index(name="OCCURRENCES")
+    )
+    totals = out.groupby("PREVIOUS DIRECTION")["OCCURRENCES"].transform("sum")
+    out["TOTAL AFTER PREVIOUS"] = totals
+    out["FOLLOWING RATE"] = (out["OCCURRENCES"] / totals * 100).round(1)
+    return out[out["OCCURRENCES"] >= min_occurrences].sort_values(
+        ["PREVIOUS DIRECTION", "FOLLOWING RATE", "OCCURRENCES"],
+        ascending=[True, False, False],
+    ).reset_index(drop=True)
+
+
 def repeated_play_sequences(df, min_occurrences=2, max_play_gap=2):
     """Find repeated exact play sequences using real play order.
 
@@ -1069,6 +1186,8 @@ class TendencyReport:
     trigger_sequences: pd.DataFrame
     repeated_sequences: pd.DataFrame
     repeated_followups: pd.DataFrame
+    run_pass_sequences: pd.DataFrame
+    left_right_sequences: pd.DataFrame
     frequency_by_formation: pd.DataFrame
     frequency_by_situation: pd.DataFrame
     hash_down_distance_play_probabilities: pd.DataFrame
@@ -1121,6 +1240,8 @@ def analyze(df):
         trigger_sequence_analysis(df),
         repeated_play_sequences(df),
         repeated_play_followups(df),
+        run_pass_sequences(df),
+        left_right_sequences(df),
         frequency_profile(df, "OFF FORM"),
         frequency_profile(situation, "SITUATION"),
         hash_down_distance_play_probabilities(df),
@@ -1154,6 +1275,8 @@ def write_report(report, output_dir="output"):
     report.trigger_sequences.to_csv(out / "trigger_sequences.csv", index=False)
     report.repeated_sequences.to_csv(out / "repeated_play_sequences.csv", index=False)
     report.repeated_followups.to_csv(out / "repeated_play_followups.csv", index=False)
+    report.run_pass_sequences.to_csv(out / "run_pass_sequences.csv", index=False)
+    report.left_right_sequences.to_csv(out / "left_right_sequences.csv", index=False)
     report.frequency_by_formation.to_csv(out / "frequency_by_formation.csv", index=False)
     report.frequency_by_situation.to_csv(out / "frequency_by_situation.csv", index=False)
     report.frequency_by_personnel.to_csv(out / "frequency_by_personnel.csv", index=False)

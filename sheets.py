@@ -152,6 +152,8 @@ def write_report(spreadsheet, report):
         ),
         ("REPEATED PLAY SEQUENCES", report.repeated_sequences),
         ("REPEATED PLAY FOLLOW-UPS", report.repeated_followups),
+        ("RUN / PASS SEQUENCING", report.run_pass_sequences),
+        ("LEFT / RIGHT SEQUENCING", report.left_right_sequences),
         (
             "HIGH-FREQUENCY — SITUATIONS + YARDS",
             report.frequency_by_situation,
