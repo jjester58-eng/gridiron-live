@@ -136,7 +136,7 @@ def write_report(spreadsheet, report):
         "Team Identity",
         f"RUN ATT: {summary['RUN ATT']}",
         f"RUN YDS: {summary['RUN YDS']}",
-        f"PASS ATT: {summary['PASS ATT']}",
+        f"PASS ATT / COMP: {summary['PASS ATT']} / {summary['PASS COMP']}",
         f"PASS YDS: {summary['PASS YDS']}",
         f"SACK: {summary['SACK']}",
         f"INT: {summary['INT']}",
