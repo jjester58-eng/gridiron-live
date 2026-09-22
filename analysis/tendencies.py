@@ -168,6 +168,46 @@ def down_distance_tendencies(df):
 
 
 
+
+def canonical_like_term_map(values):
+    """Map longer terms to a shorter closely related term when it contains it."""
+    unique = sorted(
+        {clean(value) for value in values if clean(value)},
+        key=lambda value: (
+            len(re.sub(r"[^A-Z0-9]+", " ", value.upper()).strip()),
+            value.upper(),
+        ),
+    )
+    mapping = {}
+
+    normalized_values = {
+        value: re.sub(r"[^A-Z0-9]+", " ", value.upper()).strip()
+        for value in unique
+    }
+
+    for value in unique:
+        normalized = normalized_values[value]
+        match = None
+
+        for candidate in unique:
+            if candidate == value:
+                continue
+
+            candidate_normalized = normalized_values[candidate]
+            if (
+                len(candidate_normalized) < len(normalized)
+                and re.search(
+                    rf"(?<![A-Z0-9]){re.escape(candidate_normalized)}(?![A-Z0-9])",
+                    normalized,
+                )
+            ):
+                match = candidate
+                break
+
+        mapping[value] = match if match is not None else value
+
+    return mapping
+
 def hash_down_distance_play_probabilities(df, min_occurrences=1, top_n=3):
     """Show the top formation/play combinations for each down/distance situation."""
     rows = []
@@ -175,7 +215,7 @@ def hash_down_distance_play_probabilities(df, min_occurrences=1, top_n=3):
     for _, row in df.iterrows():
         situation = situation_bucket(row.get("DN", ""), row.get("DIST", ""))
         formation = clean(row.get("OFF FORM", ""))
-        play = play_label(row)
+        play = normalize_favorite_play(play_label(row))
 
         if not situation:
             continue
@@ -193,6 +233,13 @@ def hash_down_distance_play_probabilities(df, min_occurrences=1, top_n=3):
         ])
 
     work = pd.DataFrame(rows)
+
+    formation_map = canonical_like_term_map(
+        work.loc[work["FORMATION"] != "UNKNOWN", "FORMATION"].tolist()
+    )
+    work["FORMATION"] = work["FORMATION"].map(
+        lambda value: formation_map.get(value, value)
+    )
 
     summary_rows = []
     for situation, group in work.groupby("DOWN & DISTANCE"):
