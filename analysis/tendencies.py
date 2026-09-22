@@ -687,35 +687,42 @@ def repeated_play_followups(df, min_occurrences=2):
     )
 
 
-def completed_comment_patterns(df, min_occurrences=2):
-    """Summarize pass targets by play and formation.
+def completed_comment_patterns(df, min_occurrences=1):
+    """Build coach-friendly passing target tendencies.
 
-    A target is extracted from the COMMENTS field when written as a player
-    number such as #5. Each PLAY + FORMATION + TARGET combination is counted
-    across completions and incompletions so the report answers questions like:
-    "From Trips on ALL SIT, how often did they target #5?"
+    Groups passing plays by PLAY + FORMATION + TARGET and shows completion
+    and incompletion counts. TARGET is taken from the COMMENTS field when a
+    receiver number is written as #5, # 5, etc. The original comment text is
+    retained so coaches can see the scouting note that produced the target.
     """
     rows = []
 
     for _, row in df.iterrows():
         result = clean(row.get("RESULT", ""))
         result_upper = result.upper()
-        if "COMPLETE" not in result_upper and "INCOMPLETE" not in result_upper:
+
+        # Only actual completion/incompletion records belong in this section.
+        if "INCOMPLETE" in result_upper:
+            result_type = "INCOMPLETE"
+        elif "COMPLETE" in result_upper:
+            result_type = "COMPLETE"
+        else:
             continue
 
-        comment = clean(row.get("COMMENTS", ""))
         play = play_name(row)
         formation = clean(row.get("OFF FORM", ""))
+        comment = clean(row.get("COMMENTS", ""))
 
-        if not play or not formation:
+        if not play or not formation or not comment:
             continue
 
-        targets = re.findall(r"#\s*(\d+)", comment)
-        target = ", ".join(f"#{number}" for number in dict.fromkeys(targets))
-        if not target:
-            continue
-
-        result_type = "INCOMPLETE" if "INCOMPLETE" in result_upper else "COMPLETE"
+        # Accept common coach-entry formats: #5, # 5, Target #5, etc.
+        targets = re.findall(r"#\s*(\d{1,2})", comment)
+        if targets:
+            target = ", ".join(f"#{number}" for number in dict.fromkeys(targets))
+        else:
+            # Keep the row visible rather than silently dropping it.
+            target = "UNSPECIFIED"
 
         rows.append({
             "PLAY": play,
@@ -746,9 +753,9 @@ def completed_comment_patterns(df, min_occurrences=2):
         .agg(
             COMPLETE=("RESULT", lambda s: int((s == "COMPLETE").sum())),
             INCOMPLETE=("RESULT", lambda s: int((s == "INCOMPLETE").sum())),
-            COMMENTS=("COMMENTS", lambda s: ", ".join(dict.fromkeys(
-                value for value in s if value
-            ))),
+            COMMENTS=("COMMENTS", lambda s: ", ".join(
+                dict.fromkeys(value for value in s if value)
+            )),
             PLAY_NUMBERS=("PLAY_NUMBER", lambda s: ", ".join(
                 s.astype(str)
             )),
@@ -756,8 +763,8 @@ def completed_comment_patterns(df, min_occurrences=2):
         .reset_index()
     )
 
-    summary["COUNT"] = summary["COMPLETE"] + summary["INCOMPLETE"]
-    summary = summary[summary["COUNT"] >= min_occurrences].drop(columns="COUNT")
+    total = summary["COMPLETE"] + summary["INCOMPLETE"]
+    summary = summary[total >= min_occurrences].copy()
 
     return summary.sort_values(
         ["PLAY", "FORMATION", "TARGET"],
