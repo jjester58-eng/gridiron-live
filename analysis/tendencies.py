@@ -1217,7 +1217,7 @@ def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
                 "NEXT_PLAY_TYPE",
                 "NEXT_SCHEME",
             ],
-            ascending=[True, True, True, True, False, False, True, True, True],
+            ascending=[True, True, True, True, False, True, True, True],
         )
         .groupby(
             ["PREVIOUS_SITUATION", "PREVIOUS_RESULT"],
