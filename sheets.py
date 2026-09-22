@@ -130,10 +130,10 @@ def write_report(spreadsheet, report):
     worksheet.clear()
 
     # Restore the game identity/stat line at the very top.
-    # Team identity comes from the Google Spreadsheet title.
+    # Keep the identity label generic; do not expose the Google Spreadsheet title.
     summary = report.summary()
     top_line = [
-        f"Team Identity: {spreadsheet.title}",
+        "Team Identity",
         f"RUN ATT: {summary['RUN ATT']}",
         f"RUN YDS: {summary['RUN YDS']}",
         f"PASS ATT: {summary['PASS ATT']}",
