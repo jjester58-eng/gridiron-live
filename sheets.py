@@ -192,6 +192,7 @@ def write_report(spreadsheet, report):
         ("FIELD ZONE BY HASH", report.field_zone_by_hash),
         ("SITUATION → NEXT PLAY SEQUENCES", report.situation_sequences),
         ("HIGH-FREQUENCY — SCHEME + YARDS", report.frequency_by_scheme),
+        ("SITUATION → PLAY CALLING PATTERNS", report.situation_play_calling),
         ("RUN / PASS PATTERNS", report.run_pass_sequences),
         ("LEFT / RIGHT PATTERNS", report.left_right_sequences),
         ("HASH + DOWN/DISTANCE PLAY PROBABILITIES", report.hash_down_distance_play_probabilities),
