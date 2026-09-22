@@ -964,6 +964,79 @@ def field_zone_efficiency(df):
     return out.sort_values("_ORDER").drop(columns="_ORDER").reset_index(drop=True)
 
 
+def field_zone_by_hash(df):
+    """Measure play volume and production within each field zone and hash."""
+    rows = []
+
+    for _, row in df.iterrows():
+        zone = field_zone(row.get("YARD LN"))
+        hash_value = clean(row.get("HASH", ""))
+
+        if not zone or not hash_value:
+            continue
+
+        yards = numeric(row.get("GN/LS"))
+        if yards is None:
+            yards = result_yards(row.get("RESULT")) or 0
+
+        rows.append({
+            "FIELD ZONE": zone,
+            "HASH": hash_value,
+            "PLAYS": 1,
+            "RUN": int(is_run(row)),
+            "PASS": int(is_pass(row)),
+            "YARDS": yards,
+        })
+
+    columns = [
+        "FIELD ZONE", "HASH", "PLAYS", "YARDS",
+        "RUN %", "PASS %", "PLAY MIX", "YARDS/PLAY",
+    ]
+
+    if not rows:
+        return pd.DataFrame(columns=columns)
+
+    work = pd.DataFrame(rows)
+    out = (
+        work.groupby(["FIELD ZONE", "HASH"])
+        .agg(
+            PLAYS=("PLAYS", "sum"),
+            RUN=("RUN", "sum"),
+            PASS=("PASS", "sum"),
+            YARDS=("YARDS", "sum"),
+        )
+        .reset_index()
+    )
+
+    out["RUN %"] = (out["RUN"] / out["PLAYS"] * 100).round(1)
+    out["PASS %"] = (out["PASS"] / out["PLAYS"] * 100).round(1)
+    out["PLAY MIX"] = out.apply(
+        lambda r: f"{int(r['PLAYS'])} Plays {r['RUN %']:.0f}% Run {r['PASS %']:.0f}% Pass",
+        axis=1,
+    )
+    out["YARDS/PLAY"] = (out["YARDS"] / out["PLAYS"]).round(1)
+
+    order = {
+        "OWN 1-20": 1,
+        "OWN 21-40": 2,
+        "OWN 41-49": 3,
+        "MIDFIELD": 4,
+        "OPP 21-40": 5,
+        "RED ZONE": 6,
+    }
+    out["_ORDER"] = out["FIELD ZONE"].map(order).fillna(99)
+
+    return (
+        out.sort_values(
+            ["_ORDER", "HASH"],
+            ascending=[True, True],
+        )
+        .drop(columns=["_ORDER", "RUN", "PASS"])
+        .loc[:, columns]
+        .reset_index(drop=True)
+    )
+
+
 def down_efficiency(df):
     """Measure first-down conversion efficiency on every down."""
     rows = []
@@ -1278,6 +1351,7 @@ class TendencyReport:
     play_type_frequency: pd.DataFrame
     situation_sequences: pd.DataFrame
     field_zone_efficiency: pd.DataFrame
+    field_zone_by_hash: pd.DataFrame
     third_down_efficiency: pd.DataFrame
     three_and_out_analysis: pd.DataFrame
     frequency_by_personnel: pd.DataFrame
@@ -1332,6 +1406,7 @@ def analyze(df):
         general_play_type_frequency(df),
         situation_sequence_analysis(df),
         field_zone_efficiency(df),
+        field_zone_by_hash(df),
         down_efficiency(df),
         three_and_out_analysis(df),
         frequency_profile(df, "PERSONNEL"),
