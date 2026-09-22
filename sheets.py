@@ -143,8 +143,8 @@ def write_report(spreadsheet, report):
     sections = [
         ("PLAY EFFICIENCY — FIELD ZONES", report.field_zone_efficiency),
         ("HIGH-FREQUENCY — SCHEME + YARDS", report.frequency_by_scheme),
-        ("RUN / PASS PATTERNS — 2-PLAY A:B | 3-PLAY C:D", report.run_pass_sequences),
-        ("LEFT / RIGHT PATTERNS — 2-PLAY A:B | 3-PLAY C:D", report.left_right_sequences),
+        ("RUN / PASS PATTERNS", report.run_pass_sequences),
+        ("LEFT / RIGHT PATTERNS", report.left_right_sequences),
         ("HASH + DOWN/DISTANCE PLAY PROBABILITIES", report.hash_down_distance_play_probabilities),
         ("REPEATED PLAY SEQUENCES", report.repeated_sequences),
         ("REPEATED PLAY FOLLOW-UPS", report.repeated_followups),
