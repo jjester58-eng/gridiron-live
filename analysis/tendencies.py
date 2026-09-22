@@ -772,7 +772,7 @@ def frequency_profile(df, column, min_plays=2, top_n=15):
     work = df[df[column].map(clean) != ""].copy()
     if work.empty:
         return pd.DataFrame(columns=[
-            column, "PLAYS", "FREQUENCY_RATE", "RUN", "PASS", "QB_RUN",
+            column, "PLAYS", "FREQUENCY_RATE", "RUN", "PASS",
             "RUN_YARDS", "PASS_YARDS", "TOTAL_YARDS", "YARDS_PER_PLAY"
         ])
 
@@ -791,7 +791,6 @@ def frequency_profile(df, column, min_plays=2, top_n=15):
         PLAYS=("_CLASS", "size"),
         RUN=("_CLASS", lambda s: int((s == "RUN").sum())),
         PASS=("_CLASS", lambda s: int((s == "PASS").sum())),
-        QB_RUN=("_CLASS", lambda s: int((s == "QB RUN").sum())),
         RUN_YARDS=("_RUN_YARDS", "sum"),
         PASS_YARDS=("_PASS_YARDS", "sum"),
         TOTAL_YARDS=("_YARDS", "sum"),
@@ -904,23 +903,34 @@ def field_zone_efficiency(df):
         rows.append({
             "FIELD ZONE": zone,
             "PLAYS": 1,
+            "RUN": int(is_run(df.iloc[i])),
+            "PASS": int(is_pass(df.iloc[i])),
             "YARDS": yards,
             "ZONE EXIT": int(bool(next_zone and next_zone != zone)),
         })
 
     if not rows:
         return pd.DataFrame(columns=[
-            "FIELD ZONE", "PLAYS", "YARDS", "YARDS/PLAY",
-            "ZONE EXITS", "EXIT RATE"
+            "FIELD ZONE", "PLAYS", "RUN %", "PASS %", "PLAY MIX",
+            "YARDS", "YARDS/PLAY", "ZONE EXITS", "EXIT RATE"
         ])
 
     work = pd.DataFrame(rows)
     out = work.groupby("FIELD ZONE").agg(
         PLAYS=("PLAYS", "sum"),
+        RUN=("RUN", "sum"),
+        PASS=("PASS", "sum"),
         YARDS=("YARDS", "sum"),
         ZONE_EXITS=("ZONE EXIT", "sum"),
     ).reset_index()
+    out["RUN %"] = (out["RUN"] / out["PLAYS"] * 100).round(1)
+    out["PASS %"] = (out["PASS"] / out["PLAYS"] * 100).round(1)
+    out["PLAY MIX"] = out.apply(
+        lambda r: f"{int(r['PLAYS'])} Plays {r['RUN %']:.0f}% Run {r['PASS %']:.0f}% Pass",
+        axis=1,
+    )
     out["YARDS/PLAY"] = (out["YARDS"] / out["PLAYS"]).round(1)
+    out = out.drop(columns=["RUN", "PASS"])
     out["EXIT RATE"] = (out["ZONE_EXITS"] / out["PLAYS"] * 100).round(1)
 
     order = {
