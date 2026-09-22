@@ -1118,8 +1118,9 @@ def play_result_type(row):
 def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
     """Find what follows a specific situation/result combination.
 
-    Example: 2nd & Short + INCOMPLETE PASS -> next-down play type.
-    This analyzes every qualifying snap, not just explosives.
+    Results are ordered first by the previous situation, then by the next
+    down so a coach can read each situation in sequence:
+    1st & Long (10+) -> next down 1, then 2, then 3, etc.
     """
     if len(df) < 2:
         return pd.DataFrame()
@@ -1130,13 +1131,23 @@ def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
         situation = situation_bucket(current["DN"], current["DIST"])
         if not situation:
             continue
+
+        next_play_type = (
+            "PASS" if is_pass(following)
+            else "RUN" if is_run(following)
+            else ""
+        )
+        # Keep this section strictly to offensive RUN/PASS outcomes.
+        if not next_play_type:
+            continue
+
         rows.append({
             "PREVIOUS_SITUATION": situation,
             "PREVIOUS_RESULT": play_result_type(current),
             "PREVIOUS_HASH": clean(current.get("HASH", "")),
             "NEXT_DOWN": clean(following["DN"]),
             "NEXT_HASH": clean(following.get("HASH", "")),
-            "NEXT_PLAY_TYPE": "PASS" if is_pass(following) else ("RUN" if is_run(following) else "OTHER"),
+            "NEXT_PLAY_TYPE": next_play_type,
             "NEXT_SCHEME": clean(following.get("OFF PLAY", "")),
         })
 
@@ -1145,11 +1156,19 @@ def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
 
     work = pd.DataFrame(rows)
     grouped = (
-        work.groupby(["PREVIOUS_SITUATION", "PREVIOUS_RESULT", "PREVIOUS_HASH",
-                      "NEXT_DOWN", "NEXT_HASH", "NEXT_PLAY_TYPE", "NEXT_SCHEME"])
+        work.groupby([
+            "PREVIOUS_SITUATION",
+            "PREVIOUS_RESULT",
+            "PREVIOUS_HASH",
+            "NEXT_DOWN",
+            "NEXT_HASH",
+            "NEXT_PLAY_TYPE",
+            "NEXT_SCHEME",
+        ])
         .size()
         .reset_index(name="FOLLOWING_COUNT")
     )
+
     totals = grouped.groupby(
         ["PREVIOUS_SITUATION", "PREVIOUS_RESULT"]
     )["FOLLOWING_COUNT"].transform("sum")
@@ -1157,15 +1176,51 @@ def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
     grouped["FOLLOWING_RATE"] = (
         grouped["FOLLOWING_COUNT"] / totals * 100
     ).round(1)
-    grouped = grouped[grouped["FOLLOWING_COUNT"] >= min_occurrences]
-    return grouped.sort_values(
-        ["PREVIOUS_SITUATION", "PREVIOUS_RESULT", "PREVIOUS_HASH",
-         "FOLLOWING_RATE", "FOLLOWING_COUNT"],
-        ascending=[True, True, False, False],
-    ).groupby(
-        ["PREVIOUS_SITUATION", "PREVIOUS_RESULT"], group_keys=False
-    ).head(top_n).reset_index(drop=True)
 
+    grouped = grouped[grouped["FOLLOWING_COUNT"] >= min_occurrences]
+
+    down_order = {
+        "1": 1, "2": 2, "3": 3, "4": 4,
+        "1.0": 1, "2.0": 2, "3.0": 3, "4.0": 4,
+    }
+    situation_order = {
+        "1st & Long (10+)": 1,
+        "1st & Short (1-9)": 2,
+        "2nd & Long (7+)": 3,
+        "2nd & Medium (4-6)": 4,
+        "2nd & Short (1-3)": 5,
+        "3rd & Long (7+)": 6,
+        "3rd & Medium (4-6)": 7,
+        "3rd & Short (1-3)": 8,
+        "4th Down": 9,
+    }
+
+    grouped["_SITUATION_ORDER"] = grouped["PREVIOUS_SITUATION"].map(situation_order).fillna(99)
+    grouped["_NEXT_DOWN_ORDER"] = grouped["NEXT_DOWN"].map(down_order).fillna(99)
+
+    return (
+        grouped.sort_values(
+            [
+                "_SITUATION_ORDER",
+                "_NEXT_DOWN_ORDER",
+                "PREVIOUS_HASH",
+                "PREVIOUS_RESULT",
+                "FOLLOWING_RATE",
+                "FOLLOWING_COUNT",
+                "NEXT_HASH",
+                "NEXT_PLAY_TYPE",
+                "NEXT_SCHEME",
+            ],
+            ascending=[True, True, True, True, False, False, True, True, True],
+        )
+        .groupby(
+            ["PREVIOUS_SITUATION", "PREVIOUS_RESULT"],
+            group_keys=False,
+        )
+        .head(top_n)
+        .drop(columns=["_SITUATION_ORDER", "_NEXT_DOWN_ORDER"])
+        .reset_index(drop=True)
+    )
 
 def general_play_type_frequency(df):
     """Overall run/pass/QB-run frequency using the same classifier as explosives."""
