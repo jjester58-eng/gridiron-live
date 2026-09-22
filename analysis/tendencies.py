@@ -810,12 +810,17 @@ def overall_summary(df):
     pass_td_mask = pass_mask & td_mask
     fumbles = int(blob.str.contains(r"FUMBLE|FUMBLED", regex=True).sum())
     interceptions = int(blob.str.contains(r"INTERCEPTION|\bINT\b", regex=True).sum())
+    pass_completions = int(
+        pass_mask
+        & blob.str.contains(r"(?<!IN)\bCOMPLETE(?:D)?\b", regex=True)
+    ).sum()
 
     return {
         "TOTAL PLAYS": int(len(work)),
         "RUN ATT": int(run_mask.sum()),
         "RUN YDS": round(float(work.loc[run_mask, "_YARDS"].sum()), 1),
         "PASS ATT": int(pass_mask.sum()),
+        "PASS COMP": pass_completions,
         "PASS YDS": round(float(work.loc[pass_mask, "_YARDS"].sum()), 1),
         "SACK": int(sack_mask.sum()),
         "INT": interceptions,
