@@ -1169,14 +1169,6 @@ def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
         .reset_index(name="FOLLOWING_COUNT")
     )
 
-    totals = grouped.groupby(
-        ["PREVIOUS_SITUATION", "PREVIOUS_RESULT"]
-    )["FOLLOWING_COUNT"].transform("sum")
-    grouped["TOTAL_AFTER_TRIGGER"] = totals
-    grouped["FOLLOWING_RATE"] = (
-        grouped["FOLLOWING_COUNT"] / totals * 100
-    ).round(1)
-
     grouped = grouped[grouped["FOLLOWING_COUNT"] >= min_occurrences]
 
     situation_order = {
@@ -1201,7 +1193,6 @@ def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
                 "_NEXT_DOWN_ORDER",
                 "PREVIOUS_HASH",
                 "PREVIOUS_RESULT",
-                "FOLLOWING_RATE",
                 "FOLLOWING_COUNT",
                 "NEXT_HASH",
                 "NEXT_PLAY_TYPE",
@@ -1224,8 +1215,6 @@ def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
             "NEXT_PLAY_TYPE",
             "NEXT_SCHEME",
             "FOLLOWING_COUNT",
-            "TOTAL_AFTER_TRIGGER",
-            "FOLLOWING_RATE",
         ]]
         .reset_index(drop=True)
     )
