@@ -688,13 +688,15 @@ def repeated_play_followups(df, min_occurrences=2):
 
 
 def completed_comment_patterns(df, min_occurrences=2):
-    """Count repeated play + formation + result + comment combinations.
+    """Summarize pass targets by play and formation.
 
-    Includes both completions and incompletions when a coach comment is
-    present, so the report can show repeated pass concepts and the associated
-    formation/comment together.
+    A target is extracted from the COMMENTS field when written as a player
+    number such as #5. Each PLAY + FORMATION + TARGET combination is counted
+    across completions and incompletions so the report answers questions like:
+    "From Trips on ALL SIT, how often did they target #5?"
     """
     rows = []
+
     for _, row in df.iterrows():
         result = clean(row.get("RESULT", ""))
         result_upper = result.upper()
@@ -704,34 +706,62 @@ def completed_comment_patterns(df, min_occurrences=2):
         comment = clean(row.get("COMMENTS", ""))
         play = play_name(row)
         formation = clean(row.get("OFF FORM", ""))
-        if not comment or not play or not formation:
+
+        if not play or not formation:
             continue
+
+        targets = re.findall(r"#\s*(\d+)", comment)
+        target = ", ".join(f"#{number}" for number in dict.fromkeys(targets))
+        if not target:
+            continue
+
+        result_type = "INCOMPLETE" if "INCOMPLETE" in result_upper else "COMPLETE"
 
         rows.append({
             "PLAY": play,
             "FORMATION": formation,
-            "RESULT": result,
+            "TARGET": target,
+            "RESULT": result_type,
             "COMMENTS": comment,
             "PLAY_NUMBER": clean(row.get("PLAY #", "")),
         })
 
+    columns = [
+        "PLAY",
+        "FORMATION",
+        "TARGET",
+        "COMPLETE",
+        "INCOMPLETE",
+        "COMMENTS",
+        "PLAY_NUMBERS",
+    ]
+
     if not rows:
-        return pd.DataFrame(
-            columns=["PLAY", "FORMATION", "RESULT", "COMMENTS", "COUNT", "PLAY_NUMBERS"]
-        )
+        return pd.DataFrame(columns=columns)
 
     work = pd.DataFrame(rows)
-    out = (
-        work.groupby(["PLAY", "FORMATION", "RESULT", "COMMENTS"])
+
+    summary = (
+        work.groupby(["PLAY", "FORMATION", "TARGET"])
         .agg(
-            COUNT=("PLAY_NUMBER", "size"),
-            PLAY_NUMBERS=("PLAY_NUMBER", lambda s: ", ".join(s.astype(str))),
+            COMPLETE=("RESULT", lambda s: int((s == "COMPLETE").sum())),
+            INCOMPLETE=("RESULT", lambda s: int((s == "INCOMPLETE").sum())),
+            COMMENTS=("COMMENTS", lambda s: ", ".join(dict.fromkeys(
+                value for value in s if value
+            ))),
+            PLAY_NUMBERS=("PLAY_NUMBER", lambda s: ", ".join(
+                s.astype(str)
+            )),
         )
         .reset_index()
     )
-    return out[out["COUNT"] >= min_occurrences].sort_values(
-        ["COUNT", "PLAY", "FORMATION", "RESULT"],
-        ascending=[False, True, True, True],
+
+    summary["COUNT"] = summary["COMPLETE"] + summary["INCOMPLETE"]
+    summary = summary[summary["COUNT"] >= min_occurrences].drop(columns="COUNT")
+
+    return summary.sort_values(
+        ["PLAY", "FORMATION", "TARGET"],
+        ascending=[True, True, True],
     ).reset_index(drop=True)
 
 def overall_summary(df):
