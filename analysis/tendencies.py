@@ -444,7 +444,7 @@ def sequence_continuity(df, i, j, max_play_gap=2):
 def _three_play_patterns(df, value_getter, pattern_name):
     """Find repeated three-play patterns in actual consecutive offensive snaps."""
     if len(df) < 3:
-        return pd.DataFrame(columns=["PATTERN", "OCCURRENCES", "PLAY_NUMBERS"])
+        return pd.DataFrame(columns=["PATTERN", "OCCURRENCES"])
 
     rows = []
     for i in range(len(df) - 2):
@@ -470,7 +470,6 @@ def _three_play_patterns(df, value_getter, pattern_name):
 
         rows.append({
             "PATTERN": " → ".join(values),
-            "PLAY_NUMBERS": " → ".join(play_numbers),
         })
 
     if not rows:
@@ -481,7 +480,6 @@ def _three_play_patterns(df, value_getter, pattern_name):
         work.groupby("PATTERN")
         .agg(
             OCCURRENCES=("PATTERN", "size"),
-            PLAY_NUMBERS=("PLAY_NUMBERS", lambda values: ", ".join(values)),
         )
         .reset_index()
     )
