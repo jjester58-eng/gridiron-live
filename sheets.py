@@ -142,29 +142,16 @@ def write_report(spreadsheet, report):
 
     sections = [
         ("PLAY EFFICIENCY — FIELD ZONES", report.field_zone_efficiency),
-        (
-            "HIGH-FREQUENCY — SCHEME + YARDS",
-            report.frequency_by_scheme,
-        ),
-        (
-            "HASH + DOWN/DISTANCE PLAY PROBABILITIES",
-            report.hash_down_distance_play_probabilities,
-        ),
-        ("REPEATED PLAY SEQUENCES", report.repeated_sequences),
-        ("REPEATED PLAY FOLLOW-UPS", report.repeated_followups),
+        ("HIGH-FREQUENCY — SCHEME + YARDS", report.frequency_by_scheme),
         ("3-PLAY RUN / PASS PATTERNS", report.run_pass_sequences),
         ("3-PLAY LEFT / RIGHT PATTERNS", report.left_right_sequences),
-        (
-            "HIGH-FREQUENCY — SITUATIONS + YARDS",
-            report.frequency_by_situation,
-        ),
+        ("HASH + DOWN/DISTANCE PLAY PROBABILITIES", report.hash_down_distance_play_probabilities),
+        ("REPEATED PLAY SEQUENCES", report.repeated_sequences),
+        ("REPEATED PLAY FOLLOW-UPS", report.repeated_followups),
+        ("HIGH-FREQUENCY — SITUATIONS + YARDS", report.frequency_by_situation),
         ("RUN / PASS / QB RUN / SACK YARDS", report.run_pass_yards),
-        (
-            "SITUATION → NEXT PLAY SEQUENCES",
-            report.situation_sequences,
-        ),
+        ("SITUATION → NEXT PLAY SEQUENCES", report.situation_sequences),
     ]
-
     for title, section in sections:
         worksheet.update([[title]], f"A{row}")
         row += 1
