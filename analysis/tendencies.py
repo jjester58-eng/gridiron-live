@@ -169,24 +169,18 @@ def down_distance_tendencies(df):
 
 
 def hash_down_distance_play_probabilities(df, min_occurrences=1, top_n=3):
-    """Show the top formation/play combinations for each hash + situation.
-
-    This is intentionally broader than requiring repeated exact combinations.
-    It ranks the most-used formation + play pairings within each hash and
-    down/distance bucket, then displays the top three pairings side by side.
-    """
+    """Show the top formation/play combinations for each down/distance situation."""
     rows = []
+
     for _, row in df.iterrows():
-        hash_value = clean(row.get("HASH", ""))
         situation = situation_bucket(row.get("DN", ""), row.get("DIST", ""))
         formation = clean(row.get("OFF FORM", ""))
         play = play_label(row)
 
-        if not hash_value or not situation:
+        if not situation:
             continue
 
         rows.append({
-            "HASH": hash_value,
             "DOWN & DISTANCE": situation,
             "FORMATION": formation or "UNKNOWN",
             "PLAY": play if play and play != "UNKNOWN" else "UNKNOWN",
@@ -194,16 +188,14 @@ def hash_down_distance_play_probabilities(df, min_occurrences=1, top_n=3):
 
     if not rows:
         return pd.DataFrame(columns=[
-            "HASH", "DOWN & DISTANCE", "PLAYS",
+            "DOWN & DISTANCE", "PLAYS",
             "FORMATION 1", "FORMATION 2", "FORMATION 3"
         ])
 
     work = pd.DataFrame(rows)
 
     summary_rows = []
-    for (hash_value, situation), group in work.groupby(
-        ["HASH", "DOWN & DISTANCE"]
-    ):
+    for situation, group in work.groupby("DOWN & DISTANCE"):
         total = len(group)
 
         combo_counts = (
@@ -224,7 +216,6 @@ def hash_down_distance_play_probabilities(df, min_occurrences=1, top_n=3):
         top_combinations += ["—"] * (top_n - len(top_combinations))
 
         summary_rows.append({
-            "HASH": hash_value,
             "DOWN & DISTANCE": situation,
             "PLAYS": total,
             "FORMATION 1": top_combinations[0],
@@ -247,10 +238,11 @@ def hash_down_distance_play_probabilities(df, min_occurrences=1, top_n=3):
     }
     out["_ORDER"] = out["DOWN & DISTANCE"].map(order)
 
-    return out.sort_values(
-        ["HASH", "_ORDER"],
-        ascending=[True, True],
-    ).drop(columns="_ORDER").reset_index(drop=True)
+    return (
+        out.sort_values("_ORDER")
+        .drop(columns="_ORDER")
+        .reset_index(drop=True)
+    )
 
 def group_rates(df, column):
     work = df[df[column].map(clean) != ""].copy()
@@ -1245,8 +1237,7 @@ def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
     """Find what follows a specific situation/result combination.
 
     Results are ordered first by the previous situation, then by the next
-    down so a coach can read each situation in sequence:
-    1st & Long (10+) -> next down 1, then 2, then 3, etc.
+    down-and-distance situation.
     """
     if len(df) < 2:
         return pd.DataFrame()
@@ -1263,16 +1254,15 @@ def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
             else "RUN" if is_run(following)
             else ""
         )
-        # Keep this section strictly to offensive RUN/PASS outcomes.
         if not next_play_type:
             continue
 
         rows.append({
             "PREVIOUS_SITUATION": situation,
             "PREVIOUS_RESULT": play_result_type(current),
-            "PREVIOUS_HASH": clean(current.get("HASH", "")),
-            "NEXT_DOWN & DISTANCE": situation_bucket(following["DN"], following["DIST"]),
-            "NEXT_HASH": clean(following.get("HASH", "")),
+            "NEXT_DOWN & DISTANCE": situation_bucket(
+                following["DN"], following["DIST"]
+            ),
             "NEXT_PLAY_TYPE": next_play_type,
             "NEXT_SCHEME": clean(following.get("OFF PLAY", "")),
         })
@@ -1285,9 +1275,7 @@ def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
         work.groupby([
             "PREVIOUS_SITUATION",
             "PREVIOUS_RESULT",
-            "PREVIOUS_HASH",
             "NEXT_DOWN & DISTANCE",
-            "NEXT_HASH",
             "NEXT_PLAY_TYPE",
             "NEXT_SCHEME",
         ])
@@ -1317,14 +1305,12 @@ def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
             [
                 "_SITUATION_ORDER",
                 "_NEXT_DOWN_ORDER",
-                "PREVIOUS_HASH",
                 "PREVIOUS_RESULT",
                 "FOLLOWING_COUNT",
-                "NEXT_HASH",
                 "NEXT_PLAY_TYPE",
                 "NEXT_SCHEME",
             ],
-            ascending=[True, True, True, True, False, True, True, True],
+            ascending=[True, True, True, False, True, True],
         )
         .groupby(
             ["PREVIOUS_SITUATION", "PREVIOUS_RESULT"],
@@ -1334,10 +1320,8 @@ def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
         .drop(columns=["_SITUATION_ORDER", "_NEXT_DOWN_ORDER"])
         .loc[:, [
             "PREVIOUS_SITUATION",
-            "PREVIOUS_HASH",
             "PREVIOUS_RESULT",
             "NEXT_DOWN & DISTANCE",
-            "NEXT_HASH",
             "NEXT_PLAY_TYPE",
             "NEXT_SCHEME",
             "FOLLOWING_COUNT",
