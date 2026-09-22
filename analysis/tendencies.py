@@ -1145,7 +1145,7 @@ def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
             "PREVIOUS_SITUATION": situation,
             "PREVIOUS_RESULT": play_result_type(current),
             "PREVIOUS_HASH": clean(current.get("HASH", "")),
-            "NEXT_DOWN": clean(following["DN"]),
+            "NEXT_DOWN & DISTANCE": situation_bucket(following["DN"], following["DIST"]),
             "NEXT_HASH": clean(following.get("HASH", "")),
             "NEXT_PLAY_TYPE": next_play_type,
             "NEXT_SCHEME": clean(following.get("OFF PLAY", "")),
@@ -1160,7 +1160,7 @@ def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
             "PREVIOUS_SITUATION",
             "PREVIOUS_RESULT",
             "PREVIOUS_HASH",
-            "NEXT_DOWN",
+            "NEXT_DOWN & DISTANCE",
             "NEXT_HASH",
             "NEXT_PLAY_TYPE",
             "NEXT_SCHEME",
@@ -1196,7 +1196,14 @@ def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
     }
 
     grouped["_SITUATION_ORDER"] = grouped["PREVIOUS_SITUATION"].map(situation_order).fillna(99)
-    grouped["_NEXT_DOWN_ORDER"] = grouped["NEXT_DOWN"].map(down_order).fillna(99)
+    grouped["_NEXT_DOWN_ORDER"] = grouped["NEXT_DOWN & DISTANCE"].map(\
+        lambda value: {\
+            "1st & Long (10+)": 1, "1st & Short (1-9)": 2,\
+            "2nd & Long (7+)": 3, "2nd & Medium (4-6)": 4, "2nd & Short (1-3)": 5,\
+            "3rd & Long (7+)": 6, "3rd & Medium (4-6)": 7, "3rd & Short (1-3)": 8,\
+            "4th Down": 9,\
+        }.get(clean(value), 99)\
+    )
 
     return (
         grouped.sort_values(
@@ -1223,7 +1230,7 @@ def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
             "PREVIOUS_SITUATION",
             "PREVIOUS_HASH",
             "PREVIOUS_RESULT",
-            "NEXT_DOWN",
+            "NEXT_DOWN & DISTANCE",
             "NEXT_HASH",
             "NEXT_PLAY_TYPE",
             "NEXT_SCHEME",
