@@ -5,6 +5,8 @@ import json
 import os
 
 import gspread
+import re
+
 import pandas as pd
 from google.oauth2.service_account import Credentials
 
@@ -131,12 +133,24 @@ def write_report(spreadsheet, report):
             worksheet.update([["No data"]], f"A{row}")
             row += 3
 
-    # Completion/comment patterns follow the down/drive efficiency summary.
+    # Passing tendencies: detailed view on the left and a grouped summary in H.
     worksheet.update([["PASSING TENDENCIES"]], f"A{row}")
+    worksheet.update([["PASSING TENDENCIES"]], f"H{row}")
+
     completion_values = dataframe_values(report.completed_comment_patterns)
+    summary_values = dataframe_values(
+        _summarize_like_terms(report.completed_comment_patterns)
+    )
+
     if completion_values:
         worksheet.update(completion_values, f"A{row + 1}")
-        row += len(completion_values) + 4
+    if summary_values:
+        worksheet.update(summary_values, f"H{row + 1}")
+
+    if completion_values or summary_values:
+        detail_rows = len(completion_values) if completion_values else 0
+        summary_rows = len(summary_values) if summary_values else 0
+        row += max(detail_rows, summary_rows) + 4
     else:
         row += 3
 
