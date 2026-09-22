@@ -441,68 +441,62 @@ def sequence_continuity(df, i, j, max_play_gap=2):
     return 1 <= (b - a) <= max_play_gap
 
 
-def _three_play_patterns(df, value_getter, pattern_name):
-    """Find repeated three-play patterns in actual consecutive offensive snaps."""
-    if len(df) < 3:
+def _play_patterns(df, value_getter, length, min_occurrences=2):
+    """Find repeated N-play patterns in actual consecutive offensive snaps."""
+    if len(df) < length:
         return pd.DataFrame(columns=["PATTERN", "OCCURRENCES"])
 
     rows = []
-    for i in range(len(df) - 2):
-        if not sequence_continuity(df, i, i + 1):
-            continue
-        if not sequence_continuity(df, i + 1, i + 2):
+    for i in range(len(df) - length + 1):
+        if not all(sequence_continuity(df, i + offset, i + offset + 1) for offset in range(length - 1)):
             continue
 
-        values = [value_getter(df.iloc[i + offset]) for offset in range(3)]
+        values = [value_getter(df.iloc[i + offset]) for offset in range(length)]
         if not all(values):
             continue
 
-        play_numbers = []
-        valid_numbers = True
-        for offset in range(3):
-            number = numeric(df.iloc[i + offset].get("PLAY #"))
-            if number is None:
-                valid_numbers = False
-                break
-            play_numbers.append(str(int(number)))
-        if not valid_numbers:
-            continue
-
-        rows.append({
-            "PATTERN": " → ".join(values),
-        })
+        rows.append({"PATTERN": " → ".join(values)})
 
     if not rows:
-        return pd.DataFrame(columns=["PATTERN", "OCCURRENCES", "PLAY_NUMBERS"])
+        return pd.DataFrame(columns=["PATTERN", "OCCURRENCES"])
 
     work = pd.DataFrame(rows)
-    grouped = (
-        work.groupby("PATTERN")
-        .agg(
-            OCCURRENCES=("PATTERN", "size"),
-        )
-        .reset_index()
-    )
-    return grouped.sort_values(
+    grouped = work.groupby("PATTERN").size().reset_index(name="OCCURRENCES")
+    return grouped[grouped["OCCURRENCES"] >= min_occurrences].sort_values(
         ["OCCURRENCES", "PATTERN"],
         ascending=[False, True],
     ).reset_index(drop=True)
 
 
+def _side_by_side_patterns(df, value_getter, min_occurrences=2):
+    """Return 2-play and 3-play patterns in columns ready for side-by-side Sheets output."""
+    two = _play_patterns(df, value_getter, 2, min_occurrences)
+    three = _play_patterns(df, value_getter, 3, min_occurrences)
+    max_len = max(len(two), len(three), 1)
+
+    two = two.reindex(range(max_len)).fillna("")
+    three = three.reindex(range(max_len)).fillna("")
+
+    return pd.DataFrame({
+        "2-PLAY PATTERN": two["PATTERN"].tolist(),
+        "2-PLAY OCCURRENCES": two["OCCURRENCES"].tolist(),
+        "3-PLAY PATTERN": three["PATTERN"].tolist(),
+        "3-PLAY OCCURRENCES": three["OCCURRENCES"].tolist(),
+    }).fillna("")
+
+
 def run_pass_sequences(df, min_occurrences=2):
-    """Find repeated three-play RUN/PASS patterns; no prediction or rates."""
-    out = _three_play_patterns(df, sequence_play_type, "RUN/PASS")
-    return out[out["OCCURRENCES"] >= min_occurrences].reset_index(drop=True)
+    """Find repeated 2-play and 3-play RUN/PASS patterns; no prediction or rates."""
+    return _side_by_side_patterns(df, sequence_play_type, min_occurrences)
 
 
 def left_right_sequences(df, min_occurrences=2):
-    """Find repeated three-play LEFT/RIGHT patterns; no prediction or rates."""
-    out = _three_play_patterns(
+    """Find repeated 2-play and 3-play LEFT/RIGHT patterns; no prediction or rates."""
+    return _side_by_side_patterns(
         df,
         lambda row: normalize_direction(row.get("PLAY DIR", "")),
-        "LEFT/RIGHT",
+        min_occurrences,
     )
-    return out[out["OCCURRENCES"] >= min_occurrences].reset_index(drop=True)
 
 
 def repeated_play_sequences(df, min_occurrences=2, max_play_gap=2):
