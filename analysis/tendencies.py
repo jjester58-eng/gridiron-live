@@ -684,7 +684,7 @@ def repeated_play_followups(df, min_occurrences=2):
     if len(df) < 3:
         return pd.DataFrame()
 
-    labels = [play_label(df.iloc[i]) for i in range(len(df))]
+    labels = [normalize_favorite_play(play_label(df.iloc[i])) for i in range(len(df))]
     rows = []
 
     for run_length in (2, 3):
