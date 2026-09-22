@@ -198,7 +198,6 @@ def write_report(spreadsheet, report):
         ("REPEATED PLAY SEQUENCES", report.repeated_sequences),
         ("REPEATED PLAY FOLLOW-UPS", report.repeated_followups),
         ("HIGH-FREQUENCY — SITUATIONS + YARDS", report.frequency_by_situation),
-        ("RUN / PASS / QB RUN / SACK YARDS", report.run_pass_yards),
     ]
     for title, section in sections:
         worksheet.update([[title]], f"A{row}")
