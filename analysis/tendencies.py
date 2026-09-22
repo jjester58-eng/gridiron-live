@@ -895,6 +895,12 @@ def field_zone(value):
     return "MIDFIELD"
 
 
+
+def normalize_favorite_play(value):
+    """Combine simple left/right variants into one base play name."""
+    text = clean(value)
+    return re.sub(r"\s+(?:L|R)$", "", text, flags=re.IGNORECASE).strip()
+
 def field_zone_efficiency(df, top_n=3):
     """Measure play volume and production within each field zone."""
     rows = []
@@ -910,7 +916,7 @@ def field_zone_efficiency(df, top_n=3):
 
         rows.append({
             "FIELD ZONE": zone,
-            "PLAY": play_label(row),
+            "PLAY": normalize_favorite_play(play_label(row)),
             "PLAYS": 1,
             "RUN": int(is_run(row)),
             "PASS": int(is_pass(row)),
