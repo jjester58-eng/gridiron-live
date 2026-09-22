@@ -132,7 +132,7 @@ def write_report(spreadsheet, report):
             row += 3
 
     # Completion/comment patterns follow the down/drive efficiency summary.
-    worksheet.update([["PASSING TENDENCIES — FORMATION / RESULT / COMMENTS"]], f"A{row}")
+    worksheet.update([["PASSING TENDENCIES"]], f"A{row}")
     completion_values = dataframe_values(report.completed_comment_patterns)
     if completion_values:
         worksheet.update(completion_values, f"A{row + 1}")
