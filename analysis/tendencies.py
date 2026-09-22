@@ -1133,9 +1133,11 @@ def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
         rows.append({
             "PREVIOUS_SITUATION": situation,
             "PREVIOUS_RESULT": play_result_type(current),
+            "PREVIOUS_HASH": clean(current.get("HASH", "")),
             "NEXT_DOWN": clean(following["DN"]),
-            "NEXT_PLAY_TYPE": play_result_type(following),
-            "NEXT_PLAY": play_label(following),
+            "NEXT_HASH": clean(following.get("HASH", "")),
+            "NEXT_PLAY_TYPE": "PASS" if is_pass(following) else ("RUN" if is_run(following) else "OTHER"),
+            "NEXT_SCHEME": clean(following.get("OFF PLAY", "")),
         })
 
     if not rows:
@@ -1143,8 +1145,8 @@ def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
 
     work = pd.DataFrame(rows)
     grouped = (
-        work.groupby(["PREVIOUS_SITUATION", "PREVIOUS_RESULT", "NEXT_DOWN",
-                      "NEXT_PLAY_TYPE", "NEXT_PLAY"])
+        work.groupby(["PREVIOUS_SITUATION", "PREVIOUS_RESULT", "PREVIOUS_HASH",
+                      "NEXT_DOWN", "NEXT_HASH", "NEXT_PLAY_TYPE", "NEXT_SCHEME"])
         .size()
         .reset_index(name="FOLLOWING_COUNT")
     )
@@ -1157,7 +1159,8 @@ def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
     ).round(1)
     grouped = grouped[grouped["FOLLOWING_COUNT"] >= min_occurrences]
     return grouped.sort_values(
-        ["PREVIOUS_SITUATION", "PREVIOUS_RESULT", "FOLLOWING_RATE", "FOLLOWING_COUNT"],
+        ["PREVIOUS_SITUATION", "PREVIOUS_RESULT", "PREVIOUS_HASH",
+         "FOLLOWING_RATE", "FOLLOWING_COUNT"],
         ascending=[True, True, False, False],
     ).groupby(
         ["PREVIOUS_SITUATION", "PREVIOUS_RESULT"], group_keys=False
