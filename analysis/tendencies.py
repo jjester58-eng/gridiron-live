@@ -957,13 +957,7 @@ def field_zone_efficiency(df, top_n=3):
 
     favorite_rows = []
     for zone, group in play_counts.groupby("FIELD ZONE", sort=False):
-        favorites = [
-            f"{clean(play)} ({int(count)})"
-            for play, count in zip(
-                group["PLAY"].head(top_n),
-                group["PLAY_COUNT"].head(top_n),
-            )
-        ]
+        favorites = [clean(play) for play in group["PLAY"].head(top_n)]
         favorite_rows.append({
             "FIELD ZONE": zone,
             "PLAY 1": favorites[0] if len(favorites) > 0 else "",
@@ -1060,10 +1054,7 @@ def field_zone_by_hash(df, top_n=3):
         ["FIELD ZONE", "HASH"],
         sort=False,
     ):
-        favorites = [
-            f"{clean(play)} ({int(count)})"
-            for play, count in zip(group["PLAY"].head(top_n), group["PLAY_COUNT"].head(top_n))
-        ]
+        favorites = [clean(play) for play in group["PLAY"].head(top_n)]
         favorite_rows.append({
             "FIELD ZONE": zone,
             "HASH": hash_value,
