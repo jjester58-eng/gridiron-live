@@ -1321,6 +1321,113 @@ def play_result_type(row):
     return clean(row.get("PLAY TYPE")) or "OTHER"
 
 
+
+def situation_play_calling_patterns(df, min_occurrences=2, top_n=3):
+    """Show observed play-calling mix within each down/distance situation.
+
+    This is descriptive only: it reports what was called in the supplied
+    sample and does not make predictions or recommendations.
+    """
+    rows = []
+
+    for _, row in df.iterrows():
+        situation = situation_bucket(row.get("DN", ""), row.get("DIST", ""))
+        if not situation:
+            continue
+
+        play_type = sequence_play_type(row)
+        direction = normalize_direction(row.get("PLAY DIR", ""))
+        play = normalize_favorite_play(play_label(row))
+
+        if not play_type:
+            continue
+
+        rows.append({
+            "DOWN & DISTANCE": situation,
+            "PLAY_TYPE": play_type,
+            "DIRECTION": direction,
+            "PLAY": play if play and play != "UNKNOWN" else "",
+        })
+
+    columns = [
+        "DOWN & DISTANCE", "PLAYS",
+        "RUN", "RUN %", "PASS", "PASS %",
+        "LEFT", "LEFT %", "RIGHT", "RIGHT %",
+        "PLAY 1", "PLAY 2", "PLAY 3",
+    ]
+
+    if not rows:
+        return pd.DataFrame(columns=columns)
+
+    work = pd.DataFrame(rows)
+
+    summary_rows = []
+    for situation, group in work.groupby("DOWN & DISTANCE"):
+        total = len(group)
+        if total < min_occurrences:
+            continue
+
+        run_count = int((group["PLAY_TYPE"] == "RUN").sum())
+        pass_count = int((group["PLAY_TYPE"] == "PASS").sum())
+        left_count = int((group["DIRECTION"] == "LEFT").sum())
+        right_count = int((group["DIRECTION"] == "RIGHT").sum())
+
+        play_counts = (
+            group[group["PLAY"] != ""]
+            .groupby("PLAY")
+            .size()
+            .sort_values(ascending=False)
+            .head(top_n)
+        )
+
+        favorites = [
+            f"{play} ({count}/{total}, {round(count / total * 100, 1)}%)"
+            for play, count in play_counts.items()
+        ]
+        favorites += [""] * (top_n - len(favorites))
+
+        summary_rows.append({
+            "DOWN & DISTANCE": situation,
+            "PLAYS": total,
+            "RUN": run_count,
+            "RUN %": round(run_count / total * 100, 1),
+            "PASS": pass_count,
+            "PASS %": round(pass_count / total * 100, 1),
+            "LEFT": left_count,
+            "LEFT %": round(left_count / total * 100, 1),
+            "RIGHT": right_count,
+            "RIGHT %": round(right_count / total * 100, 1),
+            "PLAY 1": favorites[0],
+            "PLAY 2": favorites[1],
+            "PLAY 3": favorites[2],
+        })
+
+    if not summary_rows:
+        return pd.DataFrame(columns=columns)
+
+    order = {
+        "1st & Long (10+)": 1,
+        "1st & Short (1-9)": 2,
+        "2nd & Long (7+)": 3,
+        "2nd & Medium (4-6)": 4,
+        "2nd & Short (1-3)": 5,
+        "3rd & Long (7+)": 6,
+        "3rd & Medium (4-6)": 7,
+        "3rd & Short (1-3)": 8,
+        "4th Down": 9,
+    }
+
+    out = pd.DataFrame(summary_rows)
+    out["_ORDER"] = out["DOWN & DISTANCE"].map(order).fillna(99)
+
+    return (
+        out.sort_values(["_ORDER", "PLAYS"], ascending=[True, False])
+        .drop(columns="_ORDER")
+        .loc[:, columns]
+        .reset_index(drop=True)
+    )
+
+
 def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
     """Find what follows a specific situation/result combination.
 
@@ -1456,6 +1563,7 @@ class TendencyReport:
     hash_down_distance_play_probabilities: pd.DataFrame
     play_type_frequency: pd.DataFrame
     situation_sequences: pd.DataFrame
+    situation_play_calling: pd.DataFrame
     field_zone_efficiency: pd.DataFrame
     field_zone_by_hash: pd.DataFrame
     third_down_efficiency: pd.DataFrame
@@ -1511,6 +1619,7 @@ def analyze(df):
         hash_down_distance_play_probabilities(df),
         general_play_type_frequency(df),
         situation_sequence_analysis(df),
+        situation_play_calling_patterns(df),
         field_zone_efficiency(df),
         field_zone_by_hash(df),
         down_efficiency(df),
