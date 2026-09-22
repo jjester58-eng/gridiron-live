@@ -1219,6 +1219,18 @@ def situation_sequence_analysis(df, min_occurrences=2, top_n=10):
         )
         .head(top_n)
         .drop(columns=["_SITUATION_ORDER", "_NEXT_DOWN_ORDER"])
+        .loc[:, [
+            "PREVIOUS_SITUATION",
+            "PREVIOUS_HASH",
+            "PREVIOUS_RESULT",
+            "NEXT_DOWN",
+            "NEXT_HASH",
+            "NEXT_PLAY_TYPE",
+            "NEXT_SCHEME",
+            "FOLLOWING_COUNT",
+            "TOTAL_AFTER_TRIGGER",
+            "FOLLOWING_RATE",
+        ]]
         .reset_index(drop=True)
     )
 
