@@ -441,8 +441,8 @@ def sequence_continuity(df, i, j, max_play_gap=2):
     return 1 <= (b - a) <= max_play_gap
 
 
-def _play_patterns(df, value_getter, length, min_occurrences=2):
-    """Find repeated N-play patterns in actual consecutive offensive snaps."""
+def _pattern_counts(df, value_getter, length):
+    """Count all valid N-play patterns in actual consecutive offensive snaps."""
     if len(df) < length:
         return pd.DataFrame(columns=["PATTERN", "OCCURRENCES"])
 
@@ -460,38 +460,57 @@ def _play_patterns(df, value_getter, length, min_occurrences=2):
     if not rows:
         return pd.DataFrame(columns=["PATTERN", "OCCURRENCES"])
 
-    work = pd.DataFrame(rows)
-    grouped = work.groupby("PATTERN").size().reset_index(name="OCCURRENCES")
-    return grouped[grouped["OCCURRENCES"] >= min_occurrences].sort_values(
-        ["OCCURRENCES", "PATTERN"],
-        ascending=[False, True],
-    ).reset_index(drop=True)
+    return (
+        pd.DataFrame(rows)
+        .groupby("PATTERN")
+        .size()
+        .reset_index(name="OCCURRENCES")
+        .sort_values(["OCCURRENCES", "PATTERN"], ascending=[False, True])
+        .reset_index(drop=True)
+    )
+
+
+def _play_patterns(df, value_getter, length, min_occurrences=2):
+    """Find repeated N-play patterns in actual consecutive offensive snaps."""
+    grouped = _pattern_counts(df, value_getter, length)
+    return grouped[grouped["OCCURRENCES"] >= min_occurrences].reset_index(drop=True)
 
 
 def _side_by_side_patterns(df, value_getter, min_occurrences=2):
-    """Return 2-play and 3-play patterns in columns ready for side-by-side Sheets output."""
-    two = _play_patterns(df, value_getter, 2, min_occurrences)
-    three = _play_patterns(df, value_getter, 3, min_occurrences)
-    max_len = max(len(two), len(three), 1)
+    """Return repeated 2-play and 3-play patterns with descriptive frequencies."""
+    two_all = _pattern_counts(df, value_getter, 2)
+    three_all = _pattern_counts(df, value_getter, 3)
 
+    two = two_all[two_all["OCCURRENCES"] >= min_occurrences].copy()
+    three = three_all[three_all["OCCURRENCES"] >= min_occurrences].copy()
+
+    two_total = int(two_all["OCCURRENCES"].sum()) if not two_all.empty else 0
+    three_total = int(three_all["OCCURRENCES"].sum()) if not three_all.empty else 0
+
+    two["%"] = (two["OCCURRENCES"] / two_total * 100).round(1) if two_total else 0.0
+    three["%"] = (three["OCCURRENCES"] / three_total * 100).round(1) if three_total else 0.0
+
+    max_len = max(len(two), len(three), 1)
     two = two.reindex(range(max_len)).fillna("")
     three = three.reindex(range(max_len)).fillna("")
 
     return pd.DataFrame({
         "2-PLAY PATTERN": two["PATTERN"].tolist(),
         "2-PLAY OCCURRENCES": two["OCCURRENCES"].tolist(),
+        "2-PLAY %": two["%"].tolist(),
         "3-PLAY PATTERN": three["PATTERN"].tolist(),
         "3-PLAY OCCURRENCES": three["OCCURRENCES"].tolist(),
+        "3-PLAY %": three["%"].tolist(),
     }).fillna("")
 
 
 def run_pass_sequences(df, min_occurrences=2):
-    """Find repeated 2-play and 3-play RUN/PASS patterns; no prediction or rates."""
+    """Find repeated 2-play and 3-play RUN/PASS patterns with descriptive frequencies."""
     return _side_by_side_patterns(df, sequence_play_type, min_occurrences)
 
 
 def left_right_sequences(df, min_occurrences=2):
-    """Find repeated 2-play and 3-play LEFT/RIGHT patterns; no prediction or rates."""
+    """Find repeated 2-play and 3-play LEFT/RIGHT patterns with descriptive frequencies."""
     return _side_by_side_patterns(
         df,
         lambda row: normalize_direction(row.get("PLAY DIR", "")),
