@@ -401,8 +401,9 @@ def explosive_sequence_analysis(df):
     return out.groupby(keys).size().reset_index(name="EXPLOSIVE_COUNT").sort_values("EXPLOSIVE_COUNT", ascending=False)
 
 
+
 def sequence_play_type(row):
-    """Normalize a snap to RUN or PASS for sequencing analysis."""
+    """Normalize a snap to RUN or PASS for factual pattern analysis."""
     category = classify_play(row)
     if category in {"RUN", "QB RUN"}:
         return "RUN"
@@ -440,82 +441,70 @@ def sequence_continuity(df, i, j, max_play_gap=2):
     return 1 <= (b - a) <= max_play_gap
 
 
-def run_pass_sequences(df, min_occurrences=2):
-    """Show what run/pass category follows each run/pass category."""
-    if len(df) < 2:
-        return pd.DataFrame()
+def _three_play_patterns(df, value_getter, pattern_name):
+    """Find repeated three-play patterns in actual consecutive offensive snaps."""
+    if len(df) < 3:
+        return pd.DataFrame(columns=["PATTERN", "OCCURRENCES", "PLAY_NUMBERS"])
 
     rows = []
-    for i in range(len(df) - 1):
+    for i in range(len(df) - 2):
         if not sequence_continuity(df, i, i + 1):
             continue
-        previous = sequence_play_type(df.iloc[i])
-        following = sequence_play_type(df.iloc[i + 1])
-        if not previous or not following:
+        if not sequence_continuity(df, i + 1, i + 2):
             continue
+
+        values = [value_getter(df.iloc[i + offset]) for offset in range(3)]
+        if not all(values):
+            continue
+
+        play_numbers = []
+        valid_numbers = True
+        for offset in range(3):
+            number = numeric(df.iloc[i + offset].get("PLAY #"))
+            if number is None:
+                valid_numbers = False
+                break
+            play_numbers.append(str(int(number)))
+        if not valid_numbers:
+            continue
+
         rows.append({
-            "PREVIOUS PLAY TYPE": previous,
-            "NEXT PLAY TYPE": following,
+            "PATTERN": " → ".join(values),
+            "PLAY_NUMBERS": " → ".join(play_numbers),
         })
 
     if not rows:
-        return pd.DataFrame(columns=[
-            "PREVIOUS PLAY TYPE", "NEXT PLAY TYPE",
-            "OCCURRENCES", "TOTAL AFTER PREVIOUS", "FOLLOWING RATE"
-        ])
+        return pd.DataFrame(columns=["PATTERN", "OCCURRENCES", "PLAY_NUMBERS"])
 
     work = pd.DataFrame(rows)
-    out = (
-        work.groupby(["PREVIOUS PLAY TYPE", "NEXT PLAY TYPE"])
-        .size()
-        .reset_index(name="OCCURRENCES")
+    grouped = (
+        work.groupby("PATTERN")
+        .agg(
+            OCCURRENCES=("PATTERN", "size"),
+            PLAY_NUMBERS=("PLAY_NUMBERS", lambda values: ", ".join(values)),
+        )
+        .reset_index()
     )
-    totals = out.groupby("PREVIOUS PLAY TYPE")["OCCURRENCES"].transform("sum")
-    out["TOTAL AFTER PREVIOUS"] = totals
-    out["FOLLOWING RATE"] = (out["OCCURRENCES"] / totals * 100).round(1)
-    return out[out["OCCURRENCES"] >= min_occurrences].sort_values(
-        ["PREVIOUS PLAY TYPE", "FOLLOWING RATE", "OCCURRENCES"],
-        ascending=[True, False, False],
+    return grouped.sort_values(
+        ["OCCURRENCES", "PATTERN"],
+        ascending=[False, True],
     ).reset_index(drop=True)
+
+
+def run_pass_sequences(df, min_occurrences=2):
+    """Find repeated three-play RUN/PASS patterns; no prediction or rates."""
+    out = _three_play_patterns(df, sequence_play_type, "RUN/PASS")
+    return out[out["OCCURRENCES"] >= min_occurrences].reset_index(drop=True)
 
 
 def left_right_sequences(df, min_occurrences=2):
-    """Show what direction follows each LEFT/RIGHT play direction."""
-    if len(df) < 2:
-        return pd.DataFrame()
-
-    rows = []
-    for i in range(len(df) - 1):
-        if not sequence_continuity(df, i, i + 1):
-            continue
-        previous = normalize_direction(df.iloc[i].get("PLAY DIR", ""))
-        following = normalize_direction(df.iloc[i + 1].get("PLAY DIR", ""))
-        if not previous or not following:
-            continue
-        rows.append({
-            "PREVIOUS DIRECTION": previous,
-            "NEXT DIRECTION": following,
-        })
-
-    if not rows:
-        return pd.DataFrame(columns=[
-            "PREVIOUS DIRECTION", "NEXT DIRECTION",
-            "OCCURRENCES", "TOTAL AFTER PREVIOUS", "FOLLOWING RATE"
-        ])
-
-    work = pd.DataFrame(rows)
-    out = (
-        work.groupby(["PREVIOUS DIRECTION", "NEXT DIRECTION"])
-        .size()
-        .reset_index(name="OCCURRENCES")
+    """Find repeated three-play LEFT/RIGHT patterns; no prediction or rates."""
+    out = _three_play_patterns(
+        df,
+        lambda row: normalize_direction(row.get("PLAY DIR", "")),
+        "LEFT/RIGHT",
     )
-    totals = out.groupby("PREVIOUS DIRECTION")["OCCURRENCES"].transform("sum")
-    out["TOTAL AFTER PREVIOUS"] = totals
-    out["FOLLOWING RATE"] = (out["OCCURRENCES"] / totals * 100).round(1)
-    return out[out["OCCURRENCES"] >= min_occurrences].sort_values(
-        ["PREVIOUS DIRECTION", "FOLLOWING RATE", "OCCURRENCES"],
-        ascending=[True, False, False],
-    ).reset_index(drop=True)
+    return out[out["OCCURRENCES"] >= min_occurrences].reset_index(drop=True)
 
 
 def repeated_play_sequences(df, min_occurrences=2, max_play_gap=2):
