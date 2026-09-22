@@ -189,6 +189,7 @@ def write_report(spreadsheet, report):
 
     sections = [
         ("PLAY EFFICIENCY — FIELD ZONES", report.field_zone_efficiency),
+        ("FIELD ZONE BY HASH", report.field_zone_by_hash),
         ("SITUATION → NEXT PLAY SEQUENCES", report.situation_sequences),
         ("HIGH-FREQUENCY — SCHEME + YARDS", report.frequency_by_scheme),
         ("RUN / PASS PATTERNS", report.run_pass_sequences),
