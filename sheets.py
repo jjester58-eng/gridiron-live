@@ -142,6 +142,7 @@ def write_report(spreadsheet, report):
 
     sections = [
         ("PLAY EFFICIENCY — FIELD ZONES", report.field_zone_efficiency),
+        ("SITUATION → NEXT PLAY SEQUENCES", report.situation_sequences),
         ("HIGH-FREQUENCY — SCHEME + YARDS", report.frequency_by_scheme),
         ("RUN / PASS PATTERNS", report.run_pass_sequences),
         ("LEFT / RIGHT PATTERNS", report.left_right_sequences),
@@ -150,7 +151,6 @@ def write_report(spreadsheet, report):
         ("REPEATED PLAY FOLLOW-UPS", report.repeated_followups),
         ("HIGH-FREQUENCY — SITUATIONS + YARDS", report.frequency_by_situation),
         ("RUN / PASS / QB RUN / SACK YARDS", report.run_pass_yards),
-        ("SITUATION → NEXT PLAY SEQUENCES", report.situation_sequences),
     ]
     for title, section in sections:
         worksheet.update([[title]], f"A{row}")
