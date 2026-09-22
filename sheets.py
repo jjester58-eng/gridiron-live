@@ -133,7 +133,7 @@ def write_report(spreadsheet, report):
     # Team identity comes from the Google Spreadsheet title.
     summary = report.summary()
     top_line = [
-        f"TEAM: {spreadsheet.title}",
+        f"Team Identity: {spreadsheet.title}",
         f"RUN ATT: {summary['RUN ATT']}",
         f"RUN YDS: {summary['RUN YDS']}",
         f"PASS ATT: {summary['PASS ATT']}",
