@@ -925,7 +925,7 @@ def field_zone_efficiency(df, top_n=3):
 
     columns = [
         "FIELD ZONE", "PLAYS", "RUN %", "PASS %", "PLAY MIX",
-        "YARDS", "YARDS/PLAY", "3 FAVORITE PLAYS",
+        "YARDS", "YARDS/PLAY", "PLAY 1", "PLAY 2", "PLAY 3",
     ]
 
     if not rows:
@@ -966,7 +966,9 @@ def field_zone_efficiency(df, top_n=3):
         ]
         favorite_rows.append({
             "FIELD ZONE": zone,
-            "3 FAVORITE PLAYS": " | ".join(favorites),
+            "PLAY 1": favorites[0] if len(favorites) > 0 else "",
+            "PLAY 2": favorites[1] if len(favorites) > 1 else "",
+            "PLAY 3": favorites[2] if len(favorites) > 2 else "",
         })
 
     favorites_df = pd.DataFrame(favorite_rows)
@@ -1015,7 +1017,7 @@ def field_zone_by_hash(df, top_n=3):
         rows.append({
             "FIELD ZONE": zone,
             "HASH": hash_value,
-            "PLAY": play_label(row),
+            "PLAY": normalize_favorite_play(play_label(row)),
             "PLAYS": 1,
             "RUN": int(is_run(row)),
             "PASS": int(is_pass(row)),
@@ -1024,7 +1026,7 @@ def field_zone_by_hash(df, top_n=3):
 
     columns = [
         "FIELD ZONE", "HASH", "PLAYS", "YARDS",
-        "RUN %", "PASS %", "PLAY MIX", "YARDS/PLAY", "3 FAVORITE PLAYS",
+        "RUN %", "PASS %", "PLAY MIX", "YARDS/PLAY", "PLAY 1", "PLAY 2", "PLAY 3",
     ]
 
     if not rows:
@@ -1065,7 +1067,9 @@ def field_zone_by_hash(df, top_n=3):
         favorite_rows.append({
             "FIELD ZONE": zone,
             "HASH": hash_value,
-            "3 FAVORITE PLAYS": " | ".join(favorites),
+            "PLAY 1": favorites[0] if len(favorites) > 0 else "",
+            "PLAY 2": favorites[1] if len(favorites) > 1 else "",
+            "PLAY 3": favorites[2] if len(favorites) > 2 else "",
         })
 
     favorites_df = pd.DataFrame(favorite_rows)
