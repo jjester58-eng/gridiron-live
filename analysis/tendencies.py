@@ -690,23 +690,15 @@ def repeated_play_followups(df, min_occurrences=2):
 def completed_comment_patterns(df, min_occurrences=1):
     """Build coach-friendly passing target tendencies.
 
-    Groups passing plays by PLAY + FORMATION + TARGET and shows completion
-    and incompletion counts. TARGET is taken from the COMMENTS field when a
-    receiver number is written as #5, # 5, etc. The original comment text is
-    retained so coaches can see the scouting note that produced the target.
+    Groups passing plays by PLAY + FORMATION + TARGET + COMMENTS and counts
+    every completion and incompletion together. COMMENTS is retained because
+    it is the player number in the coach-entered data.
     """
     rows = []
 
     for _, row in df.iterrows():
-        result = clean(row.get("RESULT", ""))
-        result_upper = result.upper()
-
-        # Only actual completion/incompletion records belong in this section.
-        if "INCOMPLETE" in result_upper:
-            result_type = "INCOMPLETE"
-        elif "COMPLETE" in result_upper:
-            result_type = "COMPLETE"
-        else:
+        result = clean(row.get("RESULT", "")).upper()
+        if "INCOMPLETE" not in result and "COMPLETE" not in result:
             continue
 
         play = play_name(row)
@@ -716,19 +708,15 @@ def completed_comment_patterns(df, min_occurrences=1):
         if not play or not formation or not comment:
             continue
 
-        # Accept common coach-entry formats: #5, # 5, Target #5, etc.
         targets = re.findall(r"#\s*(\d{1,2})", comment)
-        if targets:
-            target = ", ".join(f"#{number}" for number in dict.fromkeys(targets))
-        else:
-            # Keep the row visible rather than silently dropping it.
+        target = ", ".join(f"#{number}" for number in dict.fromkeys(targets))
+        if not target:
             target = "UNSPECIFIED"
 
         rows.append({
             "PLAY": play,
             "FORMATION": formation,
             "TARGET": target,
-            "RESULT": result_type,
             "COMMENTS": comment,
             "PLAY_NUMBER": clean(row.get("PLAY #", "")),
         })
@@ -737,9 +725,8 @@ def completed_comment_patterns(df, min_occurrences=1):
         "PLAY",
         "FORMATION",
         "TARGET",
-        "COMPLETE",
-        "INCOMPLETE",
         "COMMENTS",
+        "COUNT",
         "PLAY_NUMBERS",
     ]
 
@@ -749,13 +736,9 @@ def completed_comment_patterns(df, min_occurrences=1):
     work = pd.DataFrame(rows)
 
     summary = (
-        work.groupby(["PLAY", "FORMATION", "TARGET"])
+        work.groupby(["PLAY", "FORMATION", "TARGET", "COMMENTS"])
         .agg(
-            COMPLETE=("RESULT", lambda s: int((s == "COMPLETE").sum())),
-            INCOMPLETE=("RESULT", lambda s: int((s == "INCOMPLETE").sum())),
-            COMMENTS=("COMMENTS", lambda s: ", ".join(
-                dict.fromkeys(value for value in s if value)
-            )),
+            COUNT=("PLAY_NUMBER", "size"),
             PLAY_NUMBERS=("PLAY_NUMBER", lambda s: ", ".join(
                 s.astype(str)
             )),
@@ -763,12 +746,11 @@ def completed_comment_patterns(df, min_occurrences=1):
         .reset_index()
     )
 
-    total = summary["COMPLETE"] + summary["INCOMPLETE"]
-    summary = summary[total >= min_occurrences].copy()
+    summary = summary[summary["COUNT"] >= min_occurrences]
 
     return summary.sort_values(
-        ["PLAY", "FORMATION", "TARGET"],
-        ascending=[True, True, True],
+        ["PLAY", "FORMATION", "TARGET", "COUNT"],
+        ascending=[True, True, True, False],
     ).reset_index(drop=True)
 
 def overall_summary(df):
