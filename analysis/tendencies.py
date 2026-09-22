@@ -527,7 +527,7 @@ def repeated_play_sequences(df, min_occurrences=2, max_play_gap=2):
 
     work = df.copy()
     work["_PLAY_NUM"] = work["PLAY #"].map(numeric)
-    labels = [play_label(work.iloc[i]) for i in range(len(work))]
+    labels = [normalize_favorite_play(play_label(work.iloc[i])) for i in range(len(work))]
     rows = []
 
     def same_offensive_series(i, j):
@@ -583,7 +583,7 @@ def repeated_play_sequences(df, min_occurrences=2, max_play_gap=2):
 
             next_play = None
             if end + 1 < len(work) and is_contiguous(end, end + 1):
-                candidate = play_label(work.iloc[end + 1])
+                candidate = normalize_favorite_play(play_label(work.iloc[end + 1]))
                 if candidate and candidate != "UNKNOWN":
                     next_play = candidate
 
