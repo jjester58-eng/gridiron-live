@@ -690,9 +690,9 @@ def repeated_play_followups(df, min_occurrences=2):
 def completed_comment_patterns(df, min_occurrences=1):
     """Build coach-friendly passing target tendencies.
 
-    Groups passing plays by PLAY + FORMATION + TARGET + COMMENTS and counts
-    every completion and incompletion together. COMMENTS is retained because
-    it is the player number in the coach-entered data.
+    Groups passing plays by PLAY + FORMATION + TARGET and counts every
+    completion and incompletion together. TARGET comes from the player number
+    entered in COMMENTS. COMMENTS itself is not included in the report.
     """
     rows = []
 
@@ -709,15 +709,16 @@ def completed_comment_patterns(df, min_occurrences=1):
             continue
 
         targets = re.findall(r"#\s*(\d{1,2})", comment)
-        target = ", ".join(f"#{number}" for number in dict.fromkeys(targets))
-        if not target:
-            target = "UNSPECIFIED"
+        if not targets:
+            continue
+
+        # Use the player number as the target label.
+        target = f"#{targets[0]}"
 
         rows.append({
             "PLAY": play,
             "FORMATION": formation,
             "TARGET": target,
-            "COMMENTS": comment,
             "PLAY_NUMBER": clean(row.get("PLAY #", "")),
         })
 
@@ -725,7 +726,6 @@ def completed_comment_patterns(df, min_occurrences=1):
         "PLAY",
         "FORMATION",
         "TARGET",
-        "COMMENTS",
         "COUNT",
         "PLAY_NUMBERS",
     ]
@@ -736,7 +736,7 @@ def completed_comment_patterns(df, min_occurrences=1):
     work = pd.DataFrame(rows)
 
     summary = (
-        work.groupby(["PLAY", "FORMATION", "TARGET", "COMMENTS"])
+        work.groupby(["PLAY", "FORMATION", "TARGET"])
         .agg(
             COUNT=("PLAY_NUMBER", "size"),
             PLAY_NUMBERS=("PLAY_NUMBER", lambda s: ", ".join(
@@ -749,8 +749,8 @@ def completed_comment_patterns(df, min_occurrences=1):
     summary = summary[summary["COUNT"] >= min_occurrences]
 
     return summary.sort_values(
-        ["PLAY", "FORMATION", "TARGET", "COUNT"],
-        ascending=[True, True, True, False],
+        ["PLAY", "FORMATION", "COUNT", "TARGET"],
+        ascending=[True, True, False, True],
     ).reset_index(drop=True)
 
 def overall_summary(df):
