@@ -895,45 +895,77 @@ def field_zone(value):
     return "MIDFIELD"
 
 
-def field_zone_efficiency(df):
-    """Measure how often the offense can move out of each field zone."""
+def field_zone_efficiency(df, top_n=3):
+    """Measure play volume and production within each field zone."""
     rows = []
-    for i in range(len(df)):
-        zone = field_zone(df.iloc[i].get("YARD LN"))
+
+    for _, row in df.iterrows():
+        zone = field_zone(row.get("YARD LN"))
         if not zone:
             continue
 
-        yards = numeric(df.iloc[i].get("GN/LS"))
+        yards = numeric(row.get("GN/LS"))
         if yards is None:
-            yards = result_yards(df.iloc[i].get("RESULT")) or 0
-
-        next_zone = ""
-        if i + 1 < len(df):
-            next_zone = field_zone(df.iloc[i + 1].get("YARD LN"))
+            yards = result_yards(row.get("RESULT")) or 0
 
         rows.append({
             "FIELD ZONE": zone,
+            "PLAY": play_label(row),
             "PLAYS": 1,
-            "RUN": int(is_run(df.iloc[i])),
-            "PASS": int(is_pass(df.iloc[i])),
+            "RUN": int(is_run(row)),
+            "PASS": int(is_pass(row)),
             "YARDS": yards,
-            "ZONE EXIT": int(bool(next_zone and next_zone != zone)),
         })
 
+    columns = [
+        "FIELD ZONE", "PLAYS", "RUN %", "PASS %", "PLAY MIX",
+        "YARDS", "YARDS/PLAY", "3 FAVORITE PLAYS",
+    ]
+
     if not rows:
-        return pd.DataFrame(columns=[
-            "FIELD ZONE", "PLAYS", "RUN %", "PASS %", "PLAY MIX",
-            "YARDS", "YARDS/PLAY", "ZONE EXITS", "EXIT RATE"
-        ])
+        return pd.DataFrame(columns=columns)
 
     work = pd.DataFrame(rows)
-    out = work.groupby("FIELD ZONE").agg(
-        PLAYS=("PLAYS", "sum"),
-        RUN=("RUN", "sum"),
-        PASS=("PASS", "sum"),
-        YARDS=("YARDS", "sum"),
-        ZONE_EXITS=("ZONE EXIT", "sum"),
-    ).reset_index()
+
+    out = (
+        work.groupby("FIELD ZONE")
+        .agg(
+            PLAYS=("PLAYS", "sum"),
+            RUN=("RUN", "sum"),
+            PASS=("PASS", "sum"),
+            YARDS=("YARDS", "sum"),
+        )
+        .reset_index()
+    )
+
+    play_counts = (
+        work[work["PLAY"].map(clean) != ""]
+        .groupby(["FIELD ZONE", "PLAY"])
+        .size()
+        .reset_index(name="PLAY_COUNT")
+        .sort_values(
+            ["FIELD ZONE", "PLAY_COUNT", "PLAY"],
+            ascending=[True, False, True],
+        )
+    )
+
+    favorite_rows = []
+    for zone, group in play_counts.groupby("FIELD ZONE", sort=False):
+        favorites = [
+            f"{clean(play)} ({int(count)})"
+            for play, count in zip(
+                group["PLAY"].head(top_n),
+                group["PLAY_COUNT"].head(top_n),
+            )
+        ]
+        favorite_rows.append({
+            "FIELD ZONE": zone,
+            "3 FAVORITE PLAYS": " | ".join(favorites),
+        })
+
+    favorites_df = pd.DataFrame(favorite_rows)
+    out = out.merge(favorites_df, on="FIELD ZONE", how="left")
+
     out["RUN %"] = (out["RUN"] / out["PLAYS"] * 100).round(1)
     out["PASS %"] = (out["PASS"] / out["PLAYS"] * 100).round(1)
     out["PLAY MIX"] = out.apply(
@@ -941,8 +973,6 @@ def field_zone_efficiency(df):
         axis=1,
     )
     out["YARDS/PLAY"] = (out["YARDS"] / out["PLAYS"]).round(1)
-    out = out.drop(columns=["RUN", "PASS"])
-    out["EXIT RATE"] = (out["ZONE_EXITS"] / out["PLAYS"] * 100).round(1)
 
     order = {
         "OWN 1-20": 1,
@@ -952,9 +982,14 @@ def field_zone_efficiency(df):
         "OPP 21-40": 5,
         "RED ZONE": 6,
     }
-    out["_ORDER"] = out["FIELD ZONE"].map(order)
-    return out.sort_values("_ORDER").drop(columns="_ORDER").reset_index(drop=True)
+    out["_ORDER"] = out["FIELD ZONE"].map(order).fillna(99)
 
+    return (
+        out.sort_values("_ORDER")
+        .drop(columns=["_ORDER", "RUN", "PASS"])
+        .loc[:, columns]
+        .reset_index(drop=True)
+    )
 
 def field_zone_by_hash(df, top_n=3):
     """Measure play volume/production within each field zone + hash."""
