@@ -166,9 +166,9 @@ def write_report(spreadsheet, report):
             worksheet.update([["No data"]], f"A{row}")
             row += 3
 
-    # Passing tendencies: detailed view on the left and a grouped summary in H.
+    # Passing tendencies: detailed view on the left and a grouped summary in G.
     worksheet.update([["PASSING TENDENCIES"]], f"A{row}")
-    worksheet.update([["PASSING TENDENCIES"]], f"H{row}")
+    worksheet.update([["PASSING TENDENCIES"]], f"G{row}")
 
     completion_values = dataframe_values(report.completed_comment_patterns)
     summary_values = dataframe_values(
@@ -178,7 +178,7 @@ def write_report(spreadsheet, report):
     if completion_values:
         worksheet.update(completion_values, f"A{row + 1}")
     if summary_values:
-        worksheet.update(summary_values, f"H{row + 1}")
+        worksheet.update(summary_values, f"G{row + 1}")
 
     if completion_values or summary_values:
         detail_rows = len(completion_values) if completion_values else 0
