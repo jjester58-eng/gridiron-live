@@ -964,8 +964,8 @@ def field_zone_efficiency(df):
     return out.sort_values("_ORDER").drop(columns="_ORDER").reset_index(drop=True)
 
 
-def field_zone_by_hash(df):
-    """Measure play volume and production within each field zone and hash."""
+def field_zone_by_hash(df, top_n=3):
+    """Measure play volume/production within each field zone + hash."""
     rows = []
 
     for _, row in df.iterrows():
@@ -982,6 +982,7 @@ def field_zone_by_hash(df):
         rows.append({
             "FIELD ZONE": zone,
             "HASH": hash_value,
+            "PLAY": play_label(row),
             "PLAYS": 1,
             "RUN": int(is_run(row)),
             "PASS": int(is_pass(row)),
@@ -990,14 +991,14 @@ def field_zone_by_hash(df):
 
     columns = [
         "FIELD ZONE", "HASH", "PLAYS", "YARDS",
-        "RUN %", "PASS %", "PLAY MIX", "YARDS/PLAY",
+        "RUN %", "PASS %", "PLAY MIX", "YARDS/PLAY", "3 FAVORITE PLAYS",
     ]
 
     if not rows:
         return pd.DataFrame(columns=columns)
 
     work = pd.DataFrame(rows)
-    out = (
+    summary = (
         work.groupby(["FIELD ZONE", "HASH"])
         .agg(
             PLAYS=("PLAYS", "sum"),
@@ -1006,6 +1007,40 @@ def field_zone_by_hash(df):
             YARDS=("YARDS", "sum"),
         )
         .reset_index()
+    )
+
+    play_counts = (
+        work[work["PLAY"].map(clean) != ""]
+        .groupby(["FIELD ZONE", "HASH", "PLAY"])
+        .size()
+        .reset_index(name="PLAY_COUNT")
+        .sort_values(
+            ["FIELD ZONE", "HASH", "PLAY_COUNT", "PLAY"],
+            ascending=[True, True, False, True],
+        )
+    )
+
+    favorite_rows = []
+    for (zone, hash_value), group in play_counts.groupby(
+        ["FIELD ZONE", "HASH"],
+        sort=False,
+    ):
+        favorites = [
+            f"{clean(play)} ({int(count)})"
+            for play, count in zip(group["PLAY"].head(top_n), group["PLAY_COUNT"].head(top_n))
+        ]
+        favorite_rows.append({
+            "FIELD ZONE": zone,
+            "HASH": hash_value,
+            "3 FAVORITE PLAYS": " | ".join(favorites),
+        })
+
+    favorites_df = pd.DataFrame(favorite_rows)
+
+    out = summary.merge(
+        favorites_df,
+        on=["FIELD ZONE", "HASH"],
+        how="left",
     )
 
     out["RUN %"] = (out["RUN"] / out["PLAYS"] * 100).round(1)
@@ -1035,7 +1070,6 @@ def field_zone_by_hash(df):
         .loc[:, columns]
         .reset_index(drop=True)
     )
-
 
 def down_efficiency(df):
     """Measure first-down conversion efficiency on every down."""
