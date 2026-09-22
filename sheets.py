@@ -87,8 +87,8 @@ def _normalize_like_term(value):
 
 
 def _summarize_like_terms(df):
-    """Combine clear play/formation extensions into a coach-friendly summary."""
-    columns = ["PLAY", "FORMATION", "TARGET", "COMMENTS", "COUNT"]
+    """Summarize targets across related play and formation names."""
+    columns = ["PLAY", "FORMATION", "TARGET", "COUNT"]
 
     if df is None or df.empty:
         return pd.DataFrame(columns=columns)
@@ -130,19 +130,22 @@ def _summarize_like_terms(df):
 
         return canonical
 
+    # COMMENTS contains the player number being targeted.
+    work["TARGET"] = work["COMMENTS"].astype(str).str.extract(
+        r"#\s*(\d{1,2})", expand=False
+    )
+    work = work[work["TARGET"].notna()].copy()
+    work["TARGET"] = "#" + work["TARGET"].astype(str)
+
     work["PLAY"] = work["PLAY"].map(canonicalize(work["PLAY"].tolist()))
     work["FORMATION"] = work["FORMATION"].map(
         canonicalize(work["FORMATION"].tolist())
     )
-    work["COUNT"] = pd.to_numeric(work["COUNT"], errors="coerce").fillna(0)
 
     summary = (
-        work.groupby(
-            ["PLAY", "FORMATION", "TARGET", "COMMENTS"],
-            dropna=False,
-        )
-        .agg(COUNT=("COUNT", "sum"))
-        .reset_index()
+        work.groupby(["PLAY", "FORMATION", "TARGET"], dropna=False)
+        .size()
+        .reset_index(name="COUNT")
     )
 
     return summary[columns].sort_values(
