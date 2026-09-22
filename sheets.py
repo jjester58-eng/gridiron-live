@@ -87,64 +87,29 @@ def _normalize_like_term(value):
 
 
 def _summarize_like_terms(df):
-    """Summarize target counts across related play and formation names."""
-    columns = ["PLAY", "FORMATION", "TARGET", "COUNT"]
+    """Summarize total pass targets by player number."""
+    columns = ["TARGET", "COUNT"]
 
     if df is None or df.empty:
         return pd.DataFrame(columns=columns)
 
     work = df.copy().fillna("")
-    for column in ("PLAY", "FORMATION", "TARGET"):
-        work[column] = work[column].astype(str).str.strip()
+    if "TARGET" not in work.columns or "COUNT" not in work.columns:
+        return pd.DataFrame(columns=columns)
 
-    def canonicalize(values):
-        unique = sorted(
-            {value for value in values if value},
-            key=lambda value: (
-                len(_normalize_like_term(value)),
-                _normalize_like_term(value),
-            ),
-        )
-        canonical = {}
-
-        for value in unique:
-            normalized = _normalize_like_term(value)
-            match = None
-
-            for candidate in unique:
-                if candidate == value:
-                    continue
-
-                candidate_normalized = _normalize_like_term(candidate)
-                if (
-                    len(candidate_normalized) < len(normalized)
-                    and re.search(
-                        rf"(?<![A-Z0-9]){re.escape(candidate_normalized)}(?![A-Z0-9])",
-                        normalized,
-                    )
-                ):
-                    match = candidate
-                    break
-
-            canonical[value] = match if match is not None else value
-
-        return canonical
-
-    work["PLAY"] = work["PLAY"].map(canonicalize(work["PLAY"].tolist()))
-    work["FORMATION"] = work["FORMATION"].map(
-        canonicalize(work["FORMATION"].tolist())
-    )
+    work["TARGET"] = work["TARGET"].astype(str).str.strip()
     work["COUNT"] = pd.to_numeric(work["COUNT"], errors="coerce").fillna(0)
 
     summary = (
-        work.groupby(["PLAY", "FORMATION", "TARGET"], dropna=False)
+        work[work["TARGET"] != ""]
+        .groupby("TARGET", dropna=False)
         .agg(COUNT=("COUNT", "sum"))
         .reset_index()
     )
 
-    return summary[columns].sort_values(
-        ["PLAY", "FORMATION", "COUNT", "TARGET"],
-        ascending=[True, True, False, True],
+    return summary.sort_values(
+        ["COUNT", "TARGET"],
+        ascending=[False, True],
     ).reset_index(drop=True)
 
 def write_report(spreadsheet, report):
