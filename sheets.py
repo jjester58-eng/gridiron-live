@@ -332,7 +332,6 @@ def write_offense_self_scout(spreadsheet, report):
         ("FIELD ZONE BY HASH", report.field_zone_by_hash),
         ("HIGH-FREQUENCY — SCHEME + YARDS", report.frequency_by_scheme),
         ("RUN / PASS PATTERNS", report.run_pass_sequences),
-        ("LEFT / RIGHT PATTERNS", report.left_right_sequences),
         ("REPEATED PLAY SEQUENCES", report.repeated_sequences),
         ("HIGH-FREQUENCY — SITUATIONS + YARDS", report.frequency_by_situation),
         ("HIGH-FREQUENCY — FORMATIONS + YARDS", report.frequency_by_formation),
