@@ -8,6 +8,8 @@ Factual football tendency analysis for the weekly war room.
 
 This follows the proven pattern used by the Sheets-Hudl project. There is no Vercel API and no requirement to run a local Python server.
 
+The Python analysis engine now has a separate defensive self-scout module in `analysis/defense.py`. It is kept separate from the existing opponent report so the current workflow is not changed while the offensive/opponent report is being fine-tuned. A future Google Sheet tab can call the same engine with the defensive schema.
+
 ## Weekly workflow
 
 1. Enter/paste opponent plays into the Google Sheets **ALL INFO SHEET**.
@@ -20,18 +22,48 @@ This follows the proven pattern used by the Sheets-Hudl project. There is no Ver
 
 Opponent/game play data is never committed to this repository.
 
-## Current analysis
+## Current opponent analysis
 
 - Explosive runs: **15+ yards**
 - Explosive passes: **20+ yards**
-- Explosives by formation
-- Explosives by down + distance
+- Explosives by formation and situation
 - Hash, direction, personnel, and motion
-- Previous-play feature analysis
-- Immediate explosive-play sequences
-- Rate comparisons against the overall sample
+- Run/pass and left/right 2-play and 3-play patterns
+- Situation → play-calling patterns
+- Repeated play sequences
+- Completion/incompletion + formation + comment tallies
+- Pass attempts/completions and run/pass yard summaries
 
 The analyzer is descriptive and does not make coaching decisions.
+
+## Defensive self-scout engine
+
+The new `analysis/defense.py` module accepts the defensive sheet structure:
+
+`PLAY #, ODK, DN, DIST, HASH, YARD LN, RPO, PLAY TYPE, RESULT, GN/LS, PERSONNEL, OFF FORM, MOTION, OFF PLAY, DEF CALL, DEF FRONT, DEF STUNT, COVERAGE, BLITZ, COMMENTS`
+
+The defensive engine measures:
+
+- Overall defensive production
+- Run/pass results
+- Defensive call → result
+- Front → result
+- Coverage → result
+- Blitz → result
+- Offensive formation/personnel → result
+- Down/distance → result
+- Situation → defensive call frequency
+- Situation → defensive call → result
+- Explosive-play context
+- Repeated defensive-call, coverage, and blitz patterns
+- Defensive call/coverage/comment tallies
+- Objective **strength/improvement indicators** compared with the overall sample
+
+Only groups meeting the minimum sample threshold are surfaced in the strength/improvement indicators. Those indicators compare observed results to the overall sample; they are not predictions.
+
+The defensive module intentionally ignores the fields not used by the current defensive self-scout: **FIB, BACKFIELD, PS ALIGNMENT, WS ALIGNMENT, STUD ALIGNMENT, SCHEME, PLAY DIR, PLAY (STR/WK), PZ HOLLEY, PASS PRO, READ, AWAY**.
+
+The defensive tab/report wiring will be added later, after the current opponent report is finished.
 
 ## Required Google Sheet columns
 
