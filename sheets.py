@@ -265,7 +265,7 @@ def write_defense_sheet(spreadsheet, report):
         f"RUN: {overall.get('RUN', 0)}",
         f"PASS: {overall.get('PASS', 0)}",
         f"TFL: {overall.get('TFL', 0)} ({overall.get('TFL %', 0)}%)",
-        f"SACK: {overall.get('SACK', 0)} ({overall.get('SACK %', 0)}%)",
+        f"HAVOC RATE: {overall.get('HAVOC %', 0)}%",
         f"TURNOVERS: {overall.get('TURNOVERS', 0)} ({overall.get('TURNOVER %', 0)}%)",
         f"EXPLOSIVES: {overall.get('EXPLOSIVES', 0)} ({overall.get('EXPLOSIVE %', 0)}%)",
         f"TD: {overall.get('TD', 0)} ({overall.get('TD %', 0)}%)",
@@ -275,18 +275,11 @@ def write_defense_sheet(spreadsheet, report):
 
     sections = [
         ("DEFENSIVE CALL → RESULT", report.by_def_call),
-        ("DEFENSIVE FRONT → RESULT", report.by_front),
-        ("COVERAGE → RESULT", report.by_coverage),
-        ("BLITZ → RESULT", report.by_blitz),
         ("SITUATION → DEFENSIVE CALL", report.situation_calls),
         ("SITUATION → CALL → RESULT", report.call_by_situation),
         ("OFFENSIVE FORMATION → RESULT", report.by_off_form),
-        ("OFFENSIVE PERSONNEL → RESULT", report.by_personnel),
         ("RUN / PASS → RESULT", report.by_play_type),
         ("EXPLOSIVE PLAYS", report.explosive_context),
-        ("DEFENSIVE CALL PATTERNS", report.call_patterns),
-        ("COVERAGE PATTERNS", report.coverage_patterns),
-        ("BLITZ PATTERNS", report.blitz_patterns),
         ("DEFENSIVE CALL / COVERAGE / RESULT / COMMENTS", report.comment_patterns),
         ("MEASURABLE STRENGTHS / IMPROVEMENT INDICATORS", report.indicators),
     ]
