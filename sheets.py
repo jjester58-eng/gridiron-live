@@ -257,7 +257,7 @@ def write_report(spreadsheet, report):
 
     completion_values = dataframe_values(report.completed_comment_patterns)
     summary_values = dataframe_values(
-        _summarize_like_terms(report.completed_comment_patterns)
+        report.passing_target_summary
     )
 
     if completion_values:
@@ -346,9 +346,7 @@ def write_offense_self_scout(spreadsheet, report):
     # rollup on the right. For OFF SELF SCOUT, TARGET comes from BALL CARRIER.
     grid.append(["PASSING TENDENCIES", "", "", "", "", "", "PASSING TENDENCIES"])
     completion_values = dataframe_values(report.completed_comment_patterns)
-    target_summary_values = dataframe_values(
-        _summarize_like_terms(report.completed_comment_patterns)
-    )
+    target_summary_values = dataframe_values(report.passing_target_summary)
     detail_width = max(
         (len(row) for row in completion_values),
         default=5,
@@ -377,6 +375,15 @@ def write_offense_self_scout(spreadsheet, report):
         grid.append(row_values)
 
     grid.extend([[], []])
+
+    # Rushing tendencies follows the passing tendencies as a third table.
+    grid.append(["RUSHING TENDENCIES"])
+    rushing_values = dataframe_values(report.rushing_tendencies)
+    if rushing_values:
+        grid.extend(rushing_values)
+        grid.extend([[], []])
+    else:
+        grid.extend([["No data"], [], []])
 
     for title, section in sections:
         grid.append([title])
