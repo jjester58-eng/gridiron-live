@@ -6,6 +6,11 @@ on:
     branches:
       - main
 
+# If several commits land close together, only let the newest run continue.
+concurrency:
+  group: gridiron-live-tendency-report
+  cancel-in-progress: true
+
 jobs:
   analyze:
     runs-on: ubuntu-latest
