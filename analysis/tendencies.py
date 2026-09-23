@@ -785,11 +785,12 @@ def ball_carrier_identity(df, min_occurrences=1):
 
 
 def completed_comment_patterns(df, min_occurrences=1):
-    """Build coach-friendly passing target tendencies.
+    """Build coach-friendly passing target tendencies from BALL CARRIER.
 
-    Groups passing plays by PLAY + FORMATION + TARGET and counts every
-    completion and incompletion together. TARGET comes from the player number
-    entered in COMMENTS. COMMENTS itself is not included in the report.
+    Groups passing plays by PLAY + FORMATION + BALL CARRIER and counts every
+    completion and incompletion together. TARGET is the actual player entered
+    in the BALL CARRIER column; COMMENTS are no longer used to identify the
+    target.
     """
     rows = []
 
@@ -800,17 +801,10 @@ def completed_comment_patterns(df, min_occurrences=1):
 
         play = play_name(row)
         formation = clean(row.get("OFF FORM", ""))
-        comment = clean(row.get("COMMENTS", ""))
+        target = clean(row.get("BALL CARRIER", ""))
 
-        if not play or not formation or not comment:
+        if not play or not formation or not target:
             continue
-
-        targets = re.findall(r"#\s*(\d{1,2})", comment)
-        if not targets:
-            continue
-
-        # Use the player number as the target label.
-        target = f"#{targets[0]}"
 
         rows.append({
             "PLAY": play,
