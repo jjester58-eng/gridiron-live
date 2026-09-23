@@ -242,7 +242,12 @@ def write_report(spreadsheet, report):
 
 
 def write_defense_sheet(spreadsheet, report):
-    """Write the defensive self-scout report to DEF SELF SCOUT."""
+    """Write the defensive self-scout report to DEF SELF SCOUT.
+
+    Build the entire report in memory and send it in one Sheets values update.
+    This avoids the per-section write requests that can hit the Sheets API
+    per-user write quota during GitHub Actions runs.
+    """
     existing = {w.title for w in spreadsheet.worksheets()}
 
     worksheet = (
@@ -255,8 +260,6 @@ def write_defense_sheet(spreadsheet, report):
         )
     )
 
-    worksheet.clear()
-
     overall = report.overall.iloc[0].to_dict() if not report.overall.empty else {}
     summary = [
         "DEF SELF SCOUT",
@@ -266,12 +269,12 @@ def write_defense_sheet(spreadsheet, report):
         f"PASS: {overall.get('PASS', 0)}",
         f"TFL: {overall.get('TFL', 0)} ({overall.get('TFL %', 0)}%)",
         f"HAVOC RATE: {overall.get('HAVOC %', 0)}%",
+        f"SACK: {overall.get('SACK', 0)} ({overall.get('SACK %', 0)}%)",
         f"TURNOVERS: {overall.get('TURNOVERS', 0)} ({overall.get('TURNOVER %', 0)}%)",
         f"EXPLOSIVES: {overall.get('EXPLOSIVES', 0)} ({overall.get('EXPLOSIVE %', 0)}%)",
         f"TD: {overall.get('TD', 0)} ({overall.get('TD %', 0)}%)",
         f"INCOMPLETIONS: {overall.get('INCOMPLETIONS', 0)}",
     ]
-    worksheet.update([summary], "A1")
 
     sections = [
         ("DEFENSIVE CALL → RESULT", report.by_def_call),
@@ -284,16 +287,25 @@ def write_defense_sheet(spreadsheet, report):
         ("MEASURABLE STRENGTHS / IMPROVEMENT INDICATORS", report.indicators),
     ]
 
-    row = 3
+    # Assemble the whole sheet as a single rectangular grid.
+    grid = [summary, []]
     for title, section in sections:
-        worksheet.update([[title]], f"A{row}")
-        row += 1
+        grid.append([title])
         values = dataframe_values(section)
         if values:
-            worksheet.update(values, f"A{row}")
-            row += len(values) + 2
+            grid.extend(values)
+            grid.append([])
+            grid.append([])
         else:
-            worksheet.update([["No data"]], f"A{row}")
-            row += 3
+            grid.append(["No data"])
+            grid.append([])
+            grid.append([])
+
+    # Google Sheets requires a rectangular value matrix.
+    width = max(len(row) for row in grid) if grid else 1
+    grid = [row + [""] * (width - len(row)) for row in grid]
+
+    worksheet.clear()
+    worksheet.update(grid, "A1", raw=True)
 
     return worksheet
