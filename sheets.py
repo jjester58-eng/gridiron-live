@@ -245,7 +245,6 @@ def write_report(spreadsheet, report):
         ("PLAY EFFICIENCY — FIELD ZONES", report.field_zone_efficiency),
         ("FIELD ZONE BY HASH", report.field_zone_by_hash),
         ("SITUATION → NEXT PLAY SEQUENCES", report.situation_sequences),
-        ("HIGH-FREQUENCY — SCHEME + YARDS", report.frequency_by_scheme),
         ("RUN / PASS PATTERNS", report.run_pass_sequences),
         ("LEFT / RIGHT PATTERNS", report.left_right_sequences),
         ("HASH + DOWN/DISTANCE PLAY PROBABILITIES", report.hash_down_distance_play_probabilities),
@@ -305,14 +304,10 @@ def write_offense_self_scout(spreadsheet, report):
         ("RUN / PASS PATTERNS", report.run_pass_sequences),
         ("LEFT / RIGHT PATTERNS", report.left_right_sequences),
         ("REPEATED PLAY SEQUENCES", report.repeated_sequences),
-        ("REPEATED PLAY FOLLOW-UPS", report.repeated_followups),
         ("HIGH-FREQUENCY — SITUATIONS + YARDS", report.frequency_by_situation),
         ("HIGH-FREQUENCY — FORMATIONS + YARDS", report.frequency_by_formation),
-        ("HIGH-FREQUENCY — PERSONNEL + YARDS", report.frequency_by_personnel),
         ("HIGH-FREQUENCY — MOTION + YARDS", report.frequency_by_motion),
-        ("HIGH-FREQUENCY — PLAY DIRECTION + YARDS", report.frequency_by_direction),
         ("EXPLOSIVES — FORMATION + SITUATION", report.explosive_by_formation_situation),
-        ("EXPLOSIVES — HASH + DIRECTION", report.explosive_by_hash_direction),
     ]
 
     grid = [top_line, []]
