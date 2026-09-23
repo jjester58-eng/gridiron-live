@@ -117,14 +117,28 @@ def load_offense_source_df(spreadsheet):
     df = df.loc[:, [c != "" for c in df.columns]]
     df = df.loc[:, ~pd.Index(df.columns).duplicated()]
 
-    missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
+    # Offense uses BALL CARRIER for the actual player who ran the ball
+    # or caught the pass. Some older WHS DATA columns are not used by the
+    # offense self-scout, so add them as blanks rather than requiring them.
+    required_for_offense = [
+        "PLAY #", "ODK", "DN", "DIST", "HASH", "YARD LN", "PLAY TYPE",
+        "RESULT", "GN/LS", "OFF FORM", "OFF PLAY", "MOTION", "PLAY DIR",
+        "BALL CARRIER", "DEF CALL", "COMMENTS",
+    ]
+    missing = [c for c in required_for_offense if c not in df.columns]
     if missing:
         raise ValueError(
-            f"Missing required columns in '{DEFENSE_SOURCE_SHEET_NAME}': {missing}"
+            f"Missing required offensive columns in '{DEFENSE_SOURCE_SHEET_NAME}': {missing}"
         )
 
+    # analyze() still expects the shared opponent schema. Keep the offensive
+    # fields plus BALL CARRIER, and supply unused legacy columns as blanks.
+    for column in REQUIRED_COLUMNS:
+        if column not in df.columns:
+            df[column] = ""
+
     odk = df["ODK"].astype(str).str.strip().str.upper()
-    offense = df.loc[odk == "O", REQUIRED_COLUMNS].copy()
+    offense = df.loc[odk == "O", REQUIRED_COLUMNS + ["BALL CARRIER"]].copy()
     return offense.reset_index(drop=True)
 
 def dataframe_values(df):
@@ -298,6 +312,7 @@ def write_offense_self_scout(spreadsheet, report):
         ("SITUATION → PLAY CALLING PATTERNS", report.situation_play_calling),
         ("3-AND-OUTS", report.three_and_out_analysis),
         ("PASSING TENDENCIES", report.completed_comment_patterns),
+        ("BALL CARRIER — RUSHING / RECEIVING", report.ball_carrier_identity),
         ("PLAY EFFICIENCY — FIELD ZONES", report.field_zone_efficiency),
         ("FIELD ZONE BY HASH", report.field_zone_by_hash),
         ("HIGH-FREQUENCY — SCHEME + YARDS", report.frequency_by_scheme),
