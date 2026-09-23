@@ -289,7 +289,7 @@ def _result_stops(df):
     """
     columns = [
         "PLAY #", "DOWN & DISTANCE", "HASH", "OFF FORM", "OFF PLAY",
-        "DEF CALL", "COVERAGE", "GN/LS", "RESULT", "COMMENTS",
+        "DEF CALL", "GN/LS", "RESULT", "COMMENTS",
     ]
     work = df.copy()
     work["DOWN & DISTANCE"] = work["SITUATION"]
