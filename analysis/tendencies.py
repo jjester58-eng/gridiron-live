@@ -726,16 +726,28 @@ def repeated_play_followups(df, min_occurrences=2):
     )
 
 
-def passing_target_summary(df, min_occurrences=1):
-    """Summarize passing targets from BALL CARRIER with receiving yards."""
+def passing_target_summary(df, min_occurrences=1, target_source="ball_carrier"):
+    """Summarize passing targets and yards from the selected target source.
+
+    Tendencies/ALL INFO SHEET uses the target number recorded in COMMENTS
+    (for example, #8). OFF SELF SCOUT uses BALL CARRIER.
+    """
     rows = []
     for _, row in df.iterrows():
         result = clean(row.get("RESULT", "")).upper()
         if "INCOMPLETE" not in result and "COMPLETE" not in result:
             continue
-        target = clean(row.get("BALL CARRIER", ""))
+
+        if target_source == "comments":
+            comment = clean(row.get("COMMENTS", ""))
+            matches = re.findall(r"#\s*(\d{1,2})", comment)
+            target = matches[0] if matches else ""
+        else:
+            target = clean(row.get("BALL CARRIER", ""))
+
         if not target:
             continue
+
         yards = numeric(row.get("GN/LS"))
         if yards is None:
             yards = result_yards(row.get("RESULT")) or 0
@@ -756,6 +768,7 @@ def passing_target_summary(df, min_occurrences=1):
         .sort_values(["COUNT", "YARDS", "TARGET"], ascending=[False, False, True])
         .reset_index(drop=True)
     )
+
 
 
 def rushing_tendencies(df, min_occurrences=1):
@@ -1739,7 +1752,7 @@ def analyze(df, target_source="comments"):
         run_pass_yard_summary(df),
         completed_comment_patterns(df, target_source=target_source),
         ball_carrier_identity(df),
-        passing_target_summary(df),
+        passing_target_summary(df, target_source=target_source),
         rushing_tendencies(df),
         frequency_tendencies(df, "OFF FORM"),
         overall_summary(df),
