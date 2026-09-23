@@ -250,9 +250,8 @@ def _call_by_situation(df, min_occurrences=5):
 
 def _explosive_context(df):
     columns = [
-        "PLAY #", "DOWN & DISTANCE", "HASH", "OFF FORM", "PERSONNEL",
-        "OFF PLAY", "DEF CALL", "DEF FRONT", "DEF STUNT", "COVERAGE",
-        "BLITZ", "GN/LS", "RESULT", "COMMENTS",
+        "PLAY #", "DOWN & DISTANCE", "HASH", "OFF FORM",
+        "OFF PLAY", "DEF CALL", "GN/LS", "RESULT", "COMMENTS",
     ]
     explosive = df[df["_EXPLOSIVE"]].copy()
     if explosive.empty:
@@ -282,27 +281,29 @@ def _pattern_table(df, column, length=2, min_occurrences=2):
     )
 
 
-def _comment_patterns(df, min_occurrences=2):
-    columns = ["DEF CALL", "COVERAGE", "RESULT", "COMMENTS", "COUNT", "PLAY_NUMBERS"]
+def _result_stops(df):
+    """Return individual low-gain and disruptive results for quick review.
+
+    Includes plays with 5 yards or fewer, plus incompletions, interceptions,
+    and fumbles. This is a descriptive play/situation list, not a ranking.
+    """
+    columns = [
+        "PLAY #", "DOWN & DISTANCE", "HASH", "OFF FORM", "OFF PLAY",
+        "DEF CALL", "COVERAGE", "GN/LS", "RESULT", "COMMENTS",
+    ]
     work = df.copy()
-    for column in ("DEF CALL", "COVERAGE", "RESULT", "COMMENTS"):
-        work[column] = work[column].map(clean)
-    work = work[(work["COMMENTS"] != "") &
-                ((work["DEF CALL"] != "") | (work["COVERAGE"] != ""))]
-    if work.empty:
+    work["DOWN & DISTANCE"] = work["SITUATION"]
+    yards = pd.to_numeric(work["_YARDS"], errors="coerce")
+    qualifying = (
+        (yards.notna() & (yards <= 5))
+        | work["_INCOMPLETE"]
+        | work.apply(is_interception, axis=1)
+        | work.apply(is_fumble, axis=1)
+    )
+    result = work[qualifying].copy()
+    if result.empty:
         return pd.DataFrame(columns=columns)
-    grouped = (
-        work.groupby(["DEF CALL", "COVERAGE", "RESULT", "COMMENTS"], dropna=False)
-        .agg(
-            COUNT=("PLAY #", "size"),
-            PLAY_NUMBERS=("PLAY #", lambda v: ", ".join(map(str, v))),
-        ).reset_index()
-    )
-    return (
-        grouped[grouped["COUNT"] >= min_occurrences]
-        .sort_values(["COUNT", "DEF CALL", "COVERAGE"], ascending=[False, True, True])
-        .reset_index(drop=True)
-    )
+    return result[columns].reset_index(drop=True)
 
 
 def _strength_improvement_indicators(df, min_occurrences=5):
@@ -381,7 +382,7 @@ class DefenseReport:
     call_patterns: pd.DataFrame
     coverage_patterns: pd.DataFrame
     blitz_patterns: pd.DataFrame
-    comment_patterns: pd.DataFrame
+    result_stops: pd.DataFrame
     indicators: pd.DataFrame
 
 
@@ -451,7 +452,7 @@ def analyze_defense(df, min_occurrences=5):
         call_patterns=_pattern_table(work, "DEF CALL"),
         coverage_patterns=_pattern_table(work, "COVERAGE"),
         blitz_patterns=_pattern_table(work, "BLITZ"),
-        comment_patterns=_comment_patterns(work),
+        result_stops=_result_stops(work),
         indicators=_strength_improvement_indicators(work, min_occurrences),
     )
 
@@ -474,5 +475,5 @@ def write_defense_report(report, output_dir="output"):
     report.call_patterns.to_csv(out / "defense_call_patterns.csv", index=False)
     report.coverage_patterns.to_csv(out / "defense_coverage_patterns.csv", index=False)
     report.blitz_patterns.to_csv(out / "defense_blitz_patterns.csv", index=False)
-    report.comment_patterns.to_csv(out / "defense_comment_patterns.csv", index=False)
+    report.result_stops.to_csv(out / "defense_result_stops.csv", index=False)
     report.indicators.to_csv(out / "defense_strength_improvement_indicators.csv", index=False)
