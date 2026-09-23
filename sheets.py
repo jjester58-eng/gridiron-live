@@ -328,8 +328,6 @@ def write_offense_self_scout(spreadsheet, report):
         ("DOWN EFFICIENCY", report.third_down_efficiency),
         ("SITUATION → PLAY CALLING PATTERNS", report.situation_play_calling),
         ("3-AND-OUTS", report.three_and_out_analysis),
-        ("PASSING TENDENCIES", report.completed_comment_patterns),
-        ("BALL CARRIER — RUSHING / RECEIVING", report.ball_carrier_identity),
         ("PLAY EFFICIENCY — FIELD ZONES", report.field_zone_efficiency),
         ("FIELD ZONE BY HASH", report.field_zone_by_hash),
         ("HIGH-FREQUENCY — SCHEME + YARDS", report.frequency_by_scheme),
@@ -343,6 +341,44 @@ def write_offense_self_scout(spreadsheet, report):
     ]
 
     grid = [top_line, []]
+
+    # Match the Tendencies page: PASSING TENDENCIES has the detailed
+    # PLAY / FORMATION / TARGET table on the left and a TARGET / COUNT
+    # rollup on the right. For OFF SELF SCOUT, TARGET comes from BALL CARRIER.
+    grid.append(["PASSING TENDENCIES", "", "", "", "", "", "PASSING TENDENCIES"])
+    completion_values = dataframe_values(report.completed_comment_patterns)
+    target_summary_values = dataframe_values(
+        _summarize_like_terms(report.completed_comment_patterns)
+    )
+    detail_width = max(
+        (len(row) for row in completion_values),
+        default=5,
+    )
+    summary_start_col = 7  # Column G
+    detail_height = len(completion_values)
+    summary_height = len(target_summary_values)
+    block_height = max(detail_height, summary_height)
+
+    for i in range(block_height):
+        left = (
+            completion_values[i]
+            if i < detail_height
+            else []
+        )
+        right = (
+            target_summary_values[i]
+            if i < summary_height
+            else []
+        )
+        row_values = (
+            left
+            + [""] * max(0, summary_start_col - len(left) - 1)
+            + right
+        )
+        grid.append(row_values)
+
+    grid.extend([[], []])
+
     for title, section in sections:
         grid.append([title])
         values = dataframe_values(section)
