@@ -837,12 +837,12 @@ def ball_carrier_identity(df, min_occurrences=1):
     ).loc[:, columns].reset_index(drop=True)
 
 
-def completed_comment_patterns(df, min_occurrences=1):
-    """Build passing target tendencies.
+def completed_comment_patterns(df, min_occurrences=1, target_source="comments"):
+    """Build passing target tendencies from the selected target source.
 
-    OFF SELF SCOUT uses BALL CARRIER as TARGET. The opponent report keeps its
-    existing COMMENTS-based target behavior because opponent data may not have
-    BALL CARRIER.
+    Tendencies/ALL INFO SHEET uses COMMENTS (for example, #8) as the target.
+    OFF SELF SCOUT uses BALL CARRIER because that sheet records the actual
+    offensive player.
     """
     rows = []
 
@@ -853,13 +853,12 @@ def completed_comment_patterns(df, min_occurrences=1):
 
         play = play_name(row)
         formation = clean(row.get("OFF FORM", ""))
-        target = clean(row.get("BALL CARRIER", ""))
 
-        # OFF SELF SCOUT: BALL CARRIER is the actual receiver/target.
-        # Opponent/Tendencies fallback: preserve the old #target from COMMENTS.
-        if not target:
+        if target_source == "ball_carrier":
+            target = clean(row.get("BALL CARRIER", ""))
+        else:
             comment = clean(row.get("COMMENTS", ""))
-            targets = re.findall(r"#\\s*(\\d{1,2})", comment)
+            targets = re.findall(r"#\s*(\d{1,2})", comment)
             target = targets[0] if targets else ""
 
         if not play or not formation or not target:
@@ -1738,7 +1737,7 @@ def analyze(df):
         frequency_profile(df, "SCHEME"),
         frequency_profile(df, "PLAY DIR"),
         run_pass_yard_summary(df),
-        completed_comment_patterns(df),
+        completed_comment_patterns(df, target_source="comments"),
         ball_carrier_identity(df),
         passing_target_summary(df),
         rushing_tendencies(df),
