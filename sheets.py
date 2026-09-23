@@ -10,7 +10,10 @@ import re
 import pandas as pd
 from google.oauth2.service_account import Credentials
 
+from analysis.defense import DEFENSIVE_COLUMNS
 from config import (
+    DEFENSE_OUTPUT_SHEET_NAME,
+    DEFENSE_SOURCE_SHEET_NAME,
     GOOGLE_CREDS_ENV,
     OUTPUT_SHEET_NAME,
     REQUIRED_COLUMNS,
@@ -66,6 +69,35 @@ def load_source_df(spreadsheet):
         )
 
     return df[REQUIRED_COLUMNS].copy()
+
+
+def load_defense_source_df(spreadsheet):
+    """Load WHS DATA and keep only our defensive snaps (ODK=D)."""
+    worksheet = spreadsheet.worksheet(DEFENSE_SOURCE_SHEET_NAME)
+    values = worksheet.get_all_values()
+
+    if not values:
+        raise ValueError(f"'{DEFENSE_SOURCE_SHEET_NAME}' is empty.")
+
+    headers = [str(h).strip() for h in values[0]]
+    rows = [(row + [""] * len(headers))[: len(headers)] for row in values[1:]]
+
+    df = pd.DataFrame(rows, columns=headers)
+    df = df.loc[:, [c != "" for c in df.columns]]
+    df = df.loc[:, ~pd.Index(df.columns).duplicated()]
+
+    missing = [c for c in DEFENSIVE_COLUMNS if c not in df.columns]
+    if missing:
+        raise ValueError(
+            f"Missing required defensive columns in '{DEFENSE_SOURCE_SHEET_NAME}': {missing}"
+        )
+
+    # WHS DATA contains offense, defense, and kicking snaps.
+    # For this report, D means our defense. K is intentionally left for later.
+    odk = df["ODK"].astype(str).str.strip().str.upper()
+    defense = df.loc[odk == "D", DEFENSIVE_COLUMNS].copy()
+
+    return defense.reset_index(drop=True)
 
 
 def dataframe_values(df):
@@ -126,12 +158,8 @@ def write_report(spreadsheet, report):
         )
     )
 
-    # Clear the entire existing report before rebuilding it.
-    # This removes sections that are no longer part of the report.
     worksheet.clear()
 
-    # Restore the game identity/stat line at the very top.
-    # Keep the identity label generic; do not expose the Google Spreadsheet title.
     summary = report.summary()
     top_line = [
         "Team Identity",
@@ -148,8 +176,6 @@ def write_report(spreadsheet, report):
     ]
     worksheet.update([top_line], "A1")
 
-    # Put the most immediately useful down/drive efficiency information
-    # directly after the identity/stat line.
     sections = [
         ("DOWN EFFICIENCY", report.third_down_efficiency),
         ("SITUATION → PLAY CALLING PATTERNS", report.situation_play_calling),
@@ -168,7 +194,6 @@ def write_report(spreadsheet, report):
             worksheet.update([["No data"]], f"A{row}")
             row += 3
 
-    # Passing tendencies: detailed view on the left and a grouped summary in G.
     worksheet.update([["PASSING TENDENCIES"]], f"A{row}")
     worksheet.update([["PASSING TENDENCIES"]], f"G{row}")
 
@@ -205,6 +230,72 @@ def write_report(spreadsheet, report):
         worksheet.update([[title]], f"A{row}")
         row += 1
 
+        values = dataframe_values(section)
+        if values:
+            worksheet.update(values, f"A{row}")
+            row += len(values) + 2
+        else:
+            worksheet.update([["No data"]], f"A{row}")
+            row += 3
+
+    worksheet.freeze(rows=1)
+    return worksheet
+
+
+def write_defense_sheet(spreadsheet, report):
+    """Write the defensive self-scout report to DEF SELF SCOUT."""
+    existing = {w.title for w in spreadsheet.worksheets()}
+
+    worksheet = (
+        spreadsheet.worksheet(DEFENSE_OUTPUT_SHEET_NAME)
+        if DEFENSE_OUTPUT_SHEET_NAME in existing
+        else spreadsheet.add_worksheet(
+            title=DEFENSE_OUTPUT_SHEET_NAME,
+            rows=1000,
+            cols=30,
+        )
+    )
+
+    worksheet.clear()
+
+    overall = report.overall.iloc[0].to_dict() if not report.overall.empty else {}
+    summary = [
+        "DEF SELF SCOUT",
+        f"PLAYS: {overall.get('PLAYS', 0)}",
+        f"AVG YDS: {overall.get('AVG YDS', '')}",
+        f"RUN: {overall.get('RUN', 0)}",
+        f"PASS: {overall.get('PASS', 0)}",
+        f"TFL: {overall.get('TFL', 0)} ({overall.get('TFL %', 0)}%)",
+        f"SACK: {overall.get('SACK', 0)} ({overall.get('SACK %', 0)}%)",
+        f"TURNOVERS: {overall.get('TURNOVERS', 0)} ({overall.get('TURNOVER %', 0)}%)",
+        f"EXPLOSIVES: {overall.get('EXPLOSIVES', 0)} ({overall.get('EXPLOSIVE %', 0)}%)",
+        f"TD: {overall.get('TD', 0)} ({overall.get('TD %', 0)}%)",
+        f"INCOMPLETIONS: {overall.get('INCOMPLETIONS', 0)}",
+    ]
+    worksheet.update([summary], "A1")
+
+    sections = [
+        ("DEFENSIVE CALL → RESULT", report.by_def_call),
+        ("DEFENSIVE FRONT → RESULT", report.by_front),
+        ("COVERAGE → RESULT", report.by_coverage),
+        ("BLITZ → RESULT", report.by_blitz),
+        ("SITUATION → DEFENSIVE CALL", report.situation_calls),
+        ("SITUATION → CALL → RESULT", report.call_by_situation),
+        ("OFFENSIVE FORMATION → RESULT", report.by_off_form),
+        ("OFFENSIVE PERSONNEL → RESULT", report.by_personnel),
+        ("RUN / PASS → RESULT", report.by_play_type),
+        ("EXPLOSIVE PLAYS", report.explosive_context),
+        ("DEFENSIVE CALL PATTERNS", report.call_patterns),
+        ("COVERAGE PATTERNS", report.coverage_patterns),
+        ("BLITZ PATTERNS", report.blitz_patterns),
+        ("DEFENSIVE CALL / COVERAGE / RESULT / COMMENTS", report.comment_patterns),
+        ("MEASURABLE STRENGTHS / IMPROVEMENT INDICATORS", report.indicators),
+    ]
+
+    row = 3
+    for title, section in sections:
+        worksheet.update([[title]], f"A{row}")
+        row += 1
         values = dataframe_values(section)
         if values:
             worksheet.update(values, f"A{row}")
