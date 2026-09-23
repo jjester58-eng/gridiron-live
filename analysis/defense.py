@@ -303,6 +303,16 @@ def _result_stops(df):
     result = work[qualifying].copy()
     if result.empty:
         return pd.DataFrame(columns=columns)
+
+    # Keep the section organized by down/distance, then by play number.
+    result["_SITUATION_ORDER"] = result["SITUATION"].map(SITUATION_ORDER).fillna(99)
+    result["_PLAY_NUM_ORDER"] = pd.to_numeric(result["PLAY #"], errors="coerce")
+    result = result.sort_values(
+        ["_SITUATION_ORDER", "_PLAY_NUM_ORDER"],
+        ascending=[True, True],
+        na_position="last",
+    )
+
     return result[columns].reset_index(drop=True)
 
 
