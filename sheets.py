@@ -253,18 +253,17 @@ def write_report(spreadsheet, report):
             row += 3
 
     worksheet.update([["PASSING TENDENCIES"]], f"A{row}")
-    worksheet.update([["PASSING TENDENCIES"]], f"G{row}")
 
     completion_values = dataframe_values(report.completed_comment_patterns)
-    summary_values = dataframe_values(
-        report.passing_target_summary
-    )
+    summary_values = dataframe_values(report.passing_target_summary)
 
     if completion_values:
         worksheet.update(completion_values, f"A{row + 1}")
     if summary_values:
         worksheet.update(summary_values, f"G{row + 1}")
 
+    # The right-side TARGET / COUNT / YARDS table is the same target
+    # summary used by OFF SELF SCOUT, now including receiving yards.
     if completion_values or summary_values:
         detail_rows = len(completion_values) if completion_values else 0
         summary_rows = len(summary_values) if summary_values else 0
