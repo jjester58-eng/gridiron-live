@@ -112,6 +112,7 @@ def _summarize_like_terms(df):
         ascending=[False, True],
     ).reset_index(drop=True)
 
+
 def write_report(spreadsheet, report):
     existing = {w.title for w in spreadsheet.worksheets()}
 
@@ -151,6 +152,7 @@ def write_report(spreadsheet, report):
     # directly after the identity/stat line.
     sections = [
         ("DOWN EFFICIENCY", report.third_down_efficiency),
+        ("SITUATION → PLAY CALLING PATTERNS", report.situation_play_calling),
         ("3-AND-OUTS", report.three_and_out_analysis),
     ]
 
@@ -192,7 +194,6 @@ def write_report(spreadsheet, report):
         ("FIELD ZONE BY HASH", report.field_zone_by_hash),
         ("SITUATION → NEXT PLAY SEQUENCES", report.situation_sequences),
         ("HIGH-FREQUENCY — SCHEME + YARDS", report.frequency_by_scheme),
-        ("SITUATION → PLAY CALLING PATTERNS", report.situation_play_calling),
         ("RUN / PASS PATTERNS", report.run_pass_sequences),
         ("LEFT / RIGHT PATTERNS", report.left_right_sequences),
         ("HASH + DOWN/DISTANCE PLAY PROBABILITIES", report.hash_down_distance_play_probabilities),
