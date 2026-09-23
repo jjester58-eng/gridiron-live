@@ -283,7 +283,7 @@ def write_defense_sheet(spreadsheet, report):
         ("OFFENSIVE FORMATION → RESULT", report.by_off_form),
         ("RUN / PASS → RESULT", report.by_play_type),
         ("EXPLOSIVE PLAYS", report.explosive_context),
-        ("DEFENSIVE CALL / COVERAGE / RESULT / COMMENTS", report.comment_patterns),
+        ("RESULTS — 5 YARDS OR LESS / INCOMPLETE / INTERCEPTION / FUMBLE", report.result_stops),
         ("MEASURABLE STRENGTHS / IMPROVEMENT INDICATORS", report.indicators),
     ]
 
