@@ -811,9 +811,8 @@ def overall_summary(df):
     fumbles = int(blob.str.contains(r"FUMBLE|FUMBLED", regex=True).sum())
     interceptions = int(blob.str.contains(r"INTERCEPTION|\bINT\b", regex=True).sum())
     pass_completions = int(
-        pass_mask
-        & blob.str.contains(r"(?<!IN)\bCOMPLETE(?:D)?\b", regex=True)
-    ).sum()
+        (pass_mask & blob.str.contains(r"(?<!IN)\bCOMPLETE(?:D)?\b", regex=True)).sum()
+    )
 
     return {
         "TOTAL PLAYS": int(len(work)),
