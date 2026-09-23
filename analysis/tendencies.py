@@ -785,12 +785,11 @@ def ball_carrier_identity(df, min_occurrences=1):
 
 
 def completed_comment_patterns(df, min_occurrences=1):
-    """Build coach-friendly passing target tendencies from BALL CARRIER.
+    """Build passing target tendencies.
 
-    Groups passing plays by PLAY + FORMATION + BALL CARRIER and counts every
-    completion and incompletion together. TARGET is the actual player entered
-    in the BALL CARRIER column; COMMENTS are no longer used to identify the
-    target.
+    OFF SELF SCOUT uses BALL CARRIER as TARGET. The opponent report keeps its
+    existing COMMENTS-based target behavior because opponent data may not have
+    BALL CARRIER.
     """
     rows = []
 
@@ -802,6 +801,13 @@ def completed_comment_patterns(df, min_occurrences=1):
         play = play_name(row)
         formation = clean(row.get("OFF FORM", ""))
         target = clean(row.get("BALL CARRIER", ""))
+
+        # OFF SELF SCOUT: BALL CARRIER is the actual receiver/target.
+        # Opponent/Tendencies fallback: preserve the old #target from COMMENTS.
+        if not target:
+            comment = clean(row.get("COMMENTS", ""))
+            targets = re.findall(r"#\\s*(\\d{1,2})", comment)
+            target = targets[0] if targets else ""
 
         if not play or not formation or not target:
             continue
@@ -1645,7 +1651,12 @@ def analyze(df):
     if missing:
         raise ValueError(f"Missing required columns: {missing}")
 
-    df = df[REQUIRED_COLUMNS].copy()
+    # Keep BALL CARRIER when present. It is used by OFF SELF SCOUT only;
+    # opponent scouting data does not have to provide it.
+    analysis_columns = REQUIRED_COLUMNS.copy()
+    if "BALL CARRIER" in df.columns:
+        analysis_columns.append("BALL CARRIER")
+    df = df[analysis_columns].copy()
     df = df[df["PLAY #"].map(clean) != ""].reset_index(drop=True)
     df["EXPLOSIVE"] = df.apply(is_explosive, axis=1)
 
