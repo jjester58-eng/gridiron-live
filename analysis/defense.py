@@ -413,6 +413,12 @@ def analyze_defense(df, min_occurrences=5):
         "PASS": int((work["_PLAY_TYPE"] == "PASS").sum()),
         "TFL": int(work["_TFL"].sum()),
         "TFL %": round(work["_TFL"].mean() * 100, 1) if len(work) else 0,
+        # Havoc is the share of snaps with at least one disruptive event:
+        # TFL/sack or turnover. This counts each play once.
+        "HAVOC": int((work["_TFL"] | work["_SACK"] | work["_TURNOVER"]).sum()),
+        "HAVOC %": round(
+            (work["_TFL"] | work["_SACK"] | work["_TURNOVER"]).mean() * 100, 1
+        ) if len(work) else 0,
         "SACK": int(work["_SACK"].sum()),
         "SACK %": round(work["_SACK"].mean() * 100, 1) if len(work) else 0,
         "TURNOVERS": int(work["_TURNOVER"].sum()),
