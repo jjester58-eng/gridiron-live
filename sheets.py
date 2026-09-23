@@ -15,6 +15,7 @@ from analysis.defense import DEFENSIVE_COLUMNS
 from config import (
     DEFENSE_OUTPUT_SHEET_NAME,
     DEFENSE_SOURCE_SHEET_NAME,
+    OFFENSE_OUTPUT_SHEET_NAME,
     GOOGLE_CREDS_ENV,
     OUTPUT_SHEET_NAME,
     REQUIRED_COLUMNS,
@@ -100,6 +101,31 @@ def load_defense_source_df(spreadsheet):
 
     return defense.reset_index(drop=True)
 
+
+def load_offense_source_df(spreadsheet):
+    """Load WHS DATA and keep only our offensive snaps (ODK=O)."""
+    worksheet = spreadsheet.worksheet(DEFENSE_SOURCE_SHEET_NAME)
+    values = worksheet.get_all_values()
+
+    if not values:
+        raise ValueError(f"'{DEFENSE_SOURCE_SHEET_NAME}' is empty.")
+
+    headers = [str(h).strip() for h in values[0]]
+    rows = [(row + [""] * len(headers))[: len(headers)] for row in values[1:]]
+
+    df = pd.DataFrame(rows, columns=headers)
+    df = df.loc[:, [c != "" for c in df.columns]]
+    df = df.loc[:, ~pd.Index(df.columns).duplicated()]
+
+    missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
+    if missing:
+        raise ValueError(
+            f"Missing required columns in '{DEFENSE_SOURCE_SHEET_NAME}': {missing}"
+        )
+
+    odk = df["ODK"].astype(str).str.strip().str.upper()
+    offense = df.loc[odk == "O", REQUIRED_COLUMNS].copy()
+    return offense.reset_index(drop=True)
 
 def dataframe_values(df):
     if df is None:
