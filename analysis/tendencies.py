@@ -1393,7 +1393,6 @@ def situation_play_calling_patterns(df, min_occurrences=2, top_n=3):
             continue
 
         play_type = sequence_play_type(row)
-        direction = normalize_direction(row.get("PLAY DIR", ""))
         play = normalize_favorite_play(play_label(row))
 
         if not play_type:
@@ -1402,14 +1401,12 @@ def situation_play_calling_patterns(df, min_occurrences=2, top_n=3):
         rows.append({
             "DOWN & DISTANCE": situation,
             "PLAY_TYPE": play_type,
-            "DIRECTION": direction,
             "PLAY": play if play and play != "UNKNOWN" else "",
         })
 
     columns = [
         "DOWN & DISTANCE", "PLAYS",
         "RUN", "RUN %", "PASS", "PASS %",
-        "LEFT", "LEFT %", "RIGHT", "RIGHT %",
         "PLAY 1", "PLAY 2", "PLAY 3",
     ]
 
@@ -1426,9 +1423,6 @@ def situation_play_calling_patterns(df, min_occurrences=2, top_n=3):
 
         run_count = int((group["PLAY_TYPE"] == "RUN").sum())
         pass_count = int((group["PLAY_TYPE"] == "PASS").sum())
-        left_count = int((group["DIRECTION"] == "LEFT").sum())
-        right_count = int((group["DIRECTION"] == "RIGHT").sum())
-
         play_counts = (
             group[group["PLAY"] != ""]
             .groupby("PLAY")
@@ -1450,10 +1444,6 @@ def situation_play_calling_patterns(df, min_occurrences=2, top_n=3):
             "RUN %": round(run_count / total * 100, 1),
             "PASS": pass_count,
             "PASS %": round(pass_count / total * 100, 1),
-            "LEFT": left_count,
-            "LEFT %": round(left_count / total * 100, 1),
-            "RIGHT": right_count,
-            "RIGHT %": round(right_count / total * 100, 1),
             "PLAY 1": favorites[0],
             "PLAY 2": favorites[1],
             "PLAY 3": favorites[2],
