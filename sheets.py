@@ -88,11 +88,24 @@ def load_defense_source_df(spreadsheet):
     df = df.loc[:, [c != "" for c in df.columns]]
     df = df.loc[:, ~pd.Index(df.columns).duplicated()]
 
-    missing = [c for c in DEFENSIVE_COLUMNS if c not in df.columns]
+    # Only these fields are fundamental to the defensive self-scout.
+    # Some WHS DATA versions do not include optional scouting fields such as
+    # RPO, PERSONNEL, DEF FRONT, DEF STUNT, COVERAGE, BLITZ, or COMMENTS.
+    # Add missing optional fields as blanks so the analyzer can still run.
+    required_for_defense = [
+        "PLAY #", "ODK", "DN", "DIST", "HASH", "YARD LN",
+        "PLAY TYPE", "RESULT", "GN/LS", "OFF FORM", "MOTION",
+        "OFF PLAY", "DEF CALL",
+    ]
+    missing = [c for c in required_for_defense if c not in df.columns]
     if missing:
         raise ValueError(
             f"Missing required defensive columns in '{DEFENSE_SOURCE_SHEET_NAME}': {missing}"
         )
+
+    for column in DEFENSIVE_COLUMNS:
+        if column not in df.columns:
+            df[column] = ""
 
     # WHS DATA contains offense, defense, and kicking snaps.
     # For this report, D means our defense. K is intentionally left for later.
@@ -120,6 +133,10 @@ def load_offense_source_df(spreadsheet):
     # Offense uses BALL CARRIER for the actual player who ran the ball
     # or caught the pass. Some older WHS DATA columns are not used by the
     # offense self-scout, so add them as blanks rather than requiring them.
+    # The offense sheet has used both COMMENT and COMMENTS over time.
+    # Treat them as the same field so the self-scout is tolerant of either.
+    if "COMMENTS" not in df.columns and "COMMENT" in df.columns:
+        df["COMMENTS"] = df["COMMENT"]
     required_for_offense = [
         "PLAY #", "ODK", "DN", "DIST", "HASH", "YARD LN", "PLAY TYPE",
         "RESULT", "GN/LS", "OFF FORM", "OFF PLAY", "MOTION", "PLAY DIR",
