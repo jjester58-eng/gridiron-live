@@ -238,7 +238,6 @@ def write_report(spreadsheet, report):
             worksheet.update([["No data"]], f"A{row}")
             row += 3
 
-    worksheet.freeze(rows=1)
     return worksheet
 
 
@@ -304,5 +303,4 @@ def write_defense_sheet(spreadsheet, report):
             worksheet.update([["No data"]], f"A{row}")
             row += 3
 
-    worksheet.freeze(rows=1)
     return worksheet
