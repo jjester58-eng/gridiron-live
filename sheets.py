@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 
 import gspread
 import re
@@ -301,11 +302,30 @@ def write_defense_sheet(spreadsheet, report):
             grid.append([])
             grid.append([])
 
-    # Google Sheets requires a rectangular value matrix.
+    # Google Sheets requires a rectangular value matrix. Pad the report to
+    # the existing worksheet size so old content is overwritten with blanks
+    # without a separate clear() write request.
     width = max(len(row) for row in grid) if grid else 1
+    width = max(width, worksheet.col_count)
+    row_count = max(len(grid), worksheet.row_count)
     grid = [row + [""] * (width - len(row)) for row in grid]
+    grid.extend([[""] * width for _ in range(row_count - len(grid))])
 
-    worksheet.clear()
-    worksheet.update(grid, "A1", raw=True)
+    # GitHub Actions runs can overlap after several commits. Sheets enforces a
+    # per-user write quota, so retry 429s with exponential backoff.
+    last_error = None
+    for attempt in range(5):
+        try:
+            worksheet.update(grid, "A1", raw=True)
+            return worksheet
+        except gspread.exceptions.APIError as exc:
+            last_error = exc
+            if "429" not in str(exc):
+                raise
+            if attempt == 4:
+                raise
+            time.sleep(5 * (2 ** attempt))
 
+    if last_error:
+        raise last_error
     return worksheet
