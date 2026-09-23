@@ -250,7 +250,6 @@ def write_report(spreadsheet, report):
         ("LEFT / RIGHT PATTERNS", report.left_right_sequences),
         ("HASH + DOWN/DISTANCE PLAY PROBABILITIES", report.hash_down_distance_play_probabilities),
         ("REPEATED PLAY SEQUENCES", report.repeated_sequences),
-        ("REPEATED PLAY FOLLOW-UPS", report.repeated_followups),
         ("HIGH-FREQUENCY — SITUATIONS + YARDS", report.frequency_by_situation),
     ]
     for title, section in sections:
