@@ -268,6 +268,87 @@ def write_report(spreadsheet, report):
     return worksheet
 
 
+def write_offense_self_scout(spreadsheet, report):
+    """Write the factual offensive identity report to OFF SELF SCOUT."""
+    existing = {w.title for w in spreadsheet.worksheets()}
+    worksheet = (
+        spreadsheet.worksheet(OFFENSE_OUTPUT_SHEET_NAME)
+        if OFFENSE_OUTPUT_SHEET_NAME in existing
+        else spreadsheet.add_worksheet(
+            title=OFFENSE_OUTPUT_SHEET_NAME, rows=1000, cols=30
+        )
+    )
+
+    summary = report.summary()
+    top_line = [
+        "OFF SELF SCOUT",
+        f"TOTAL PLAYS: {summary.get('TOTAL PLAYS', 0)}",
+        f"RUN ATT: {summary.get('RUN ATT', 0)}",
+        f"RUN YDS: {summary.get('RUN YDS', 0)}",
+        f"PASS ATT / COMP: {summary.get('PASS ATT', 0)} / {summary.get('PASS COMP', 0)}",
+        f"PASS YDS: {summary.get('PASS YDS', 0)}",
+        f"TD: {summary.get('TD', 0)}",
+        f"RUSH TD: {summary.get('RUSH TD', 0)}",
+        f"PASS TD: {summary.get('PASS TD', 0)}",
+        f"FUMBLES: {summary.get('FUMBLES', 0)}",
+        f"INT: {summary.get('INT', 0)}",
+        f"EXPLOSIVE PLAYS: {summary.get('EXPLOSIVE PLAYS', 0)} ({summary.get('EXPLOSIVE RATE', 0)}%)",
+    ]
+
+    sections = [
+        ("DOWN EFFICIENCY", report.third_down_efficiency),
+        ("SITUATION → PLAY CALLING PATTERNS", report.situation_play_calling),
+        ("3-AND-OUTS", report.three_and_out_analysis),
+        ("PASSING TENDENCIES", report.completed_comment_patterns),
+        ("PLAY EFFICIENCY — FIELD ZONES", report.field_zone_efficiency),
+        ("FIELD ZONE BY HASH", report.field_zone_by_hash),
+        ("HIGH-FREQUENCY — SCHEME + YARDS", report.frequency_by_scheme),
+        ("RUN / PASS PATTERNS", report.run_pass_sequences),
+        ("LEFT / RIGHT PATTERNS", report.left_right_sequences),
+        ("REPEATED PLAY SEQUENCES", report.repeated_sequences),
+        ("REPEATED PLAY FOLLOW-UPS", report.repeated_followups),
+        ("HIGH-FREQUENCY — SITUATIONS + YARDS", report.frequency_by_situation),
+        ("HIGH-FREQUENCY — FORMATIONS + YARDS", report.frequency_by_formation),
+        ("HIGH-FREQUENCY — PERSONNEL + YARDS", report.frequency_by_personnel),
+        ("HIGH-FREQUENCY — MOTION + YARDS", report.frequency_by_motion),
+        ("HIGH-FREQUENCY — PLAY DIRECTION + YARDS", report.frequency_by_direction),
+        ("EXPLOSIVES — FORMATION + SITUATION", report.explosive_by_formation_situation),
+        ("EXPLOSIVES — HASH + DIRECTION", report.explosive_by_hash_direction),
+    ]
+
+    grid = [top_line, []]
+    for title, section in sections:
+        grid.append([title])
+        values = dataframe_values(section)
+        if values:
+            grid.extend(values)
+            grid.extend([[], []])
+        else:
+            grid.extend([["No data"], [], []])
+
+    width = max(len(row) for row in grid) if grid else 1
+    width = max(width, worksheet.col_count)
+    row_count = max(len(grid), worksheet.row_count)
+    grid = [row + [""] * (width - len(row)) for row in grid]
+    grid.extend([[""] * width for _ in range(row_count - len(grid))])
+
+    last_error = None
+    for attempt in range(5):
+        try:
+            worksheet.update(grid, "A1", raw=True)
+            return worksheet
+        except gspread.exceptions.APIError as exc:
+            last_error = exc
+            if "429" not in str(exc):
+                raise
+            if attempt == 4:
+                raise
+            time.sleep(5 * (2 ** attempt))
+
+    if last_error:
+        raise last_error
+    return worksheet
+
 def write_defense_sheet(spreadsheet, report):
     """Write the defensive self-scout report to DEF SELF SCOUT.
 
