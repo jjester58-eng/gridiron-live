@@ -1690,7 +1690,7 @@ class TendencyReport:
         return result
 
 
-def analyze(df):
+def analyze(df, target_source="comments"):
     missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
     if missing:
         raise ValueError(f"Missing required columns: {missing}")
@@ -1737,7 +1737,7 @@ def analyze(df):
         frequency_profile(df, "SCHEME"),
         frequency_profile(df, "PLAY DIR"),
         run_pass_yard_summary(df),
-        completed_comment_patterns(df, target_source="comments"),
+        completed_comment_patterns(df, target_source=target_source),
         ball_carrier_identity(df),
         passing_target_summary(df),
         rushing_tendencies(df),
