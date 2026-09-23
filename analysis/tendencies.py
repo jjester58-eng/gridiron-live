@@ -726,6 +726,64 @@ def repeated_play_followups(df, min_occurrences=2):
     )
 
 
+def ball_carrier_identity(df, min_occurrences=1):
+    """Summarize the actual offensive player recorded in BALL CARRIER."""
+    rows = []
+    for _, row in df.iterrows():
+        carrier = clean(row.get("BALL CARRIER", ""))
+        if not carrier:
+            continue
+
+        category = classify_play(row)
+        yards = numeric(row.get("GN/LS"))
+        if yards is None:
+            yards = result_yards(row.get("RESULT")) or 0
+
+        result = clean(row.get("RESULT", "")).upper()
+        is_completion = "INCOMPLETE" not in result and "COMPLETE" in result
+        is_rushing = category in {"RUN", "QB RUN"}
+        is_receiving = category == "PASS" and is_completion
+
+        if not (is_rushing or is_receiving):
+            continue
+
+        rows.append({
+            "BALL CARRIER": carrier,
+            "ROLE": "RUSH" if is_rushing else "RECEIVE",
+            "PLAYS": 1,
+            "YARDS": yards,
+            "TD": int(bool(re.search(r"TOUCHDOWN|\\bTD\\b", result))),
+            "EXPLOSIVE": int(is_explosive(row)),
+            "PLAY_NUMBER": clean(row.get("PLAY #", "")),
+        })
+
+    columns = [
+        "BALL CARRIER", "ROLE", "PLAYS", "YARDS", "AVG YDS",
+        "TD", "EXPLOSIVES", "PLAY_NUMBERS",
+    ]
+    if not rows:
+        return pd.DataFrame(columns=columns)
+
+    work = pd.DataFrame(rows)
+    summary = (
+        work.groupby(["BALL CARRIER", "ROLE"])
+        .agg(
+            PLAYS=("PLAYS", "sum"),
+            YARDS=("YARDS", "sum"),
+            TD=("TD", "sum"),
+            EXPLOSIVES=("EXPLOSIVE", "sum"),
+            PLAY_NUMBERS=("PLAY_NUMBER", lambda s: ", ".join(s.astype(str))),
+        )
+        .reset_index()
+    )
+    summary["AVG YDS"] = (summary["YARDS"] / summary["PLAYS"]).round(1)
+    summary = summary[summary["PLAYS"] >= min_occurrences]
+    return summary.sort_values(
+        ["PLAYS", "YARDS", "BALL CARRIER"],
+        ascending=[False, False, True],
+    ).loc[:, columns].reset_index(drop=True)
+
+
 def completed_comment_patterns(df, min_occurrences=1):
     """Build coach-friendly passing target tendencies.
 
@@ -1574,6 +1632,7 @@ class TendencyReport:
     frequency_by_direction: pd.DataFrame
     run_pass_yards: pd.DataFrame
     completed_comment_patterns: pd.DataFrame
+    ball_carrier_identity: pd.DataFrame
     formation_frequency: pd.DataFrame
     _summary_details: dict
 
@@ -1630,6 +1689,7 @@ def analyze(df):
         frequency_profile(df, "PLAY DIR"),
         run_pass_yard_summary(df),
         completed_comment_patterns(df),
+        ball_carrier_identity(df),
         frequency_tendencies(df, "OFF FORM"),
         overall_summary(df),
     )
