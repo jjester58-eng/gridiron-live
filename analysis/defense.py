@@ -257,6 +257,13 @@ def _explosive_context(df):
     if explosive.empty:
         return pd.DataFrame(columns=columns)
     explosive["DOWN & DISTANCE"] = explosive["SITUATION"]
+    explosive["_SITUATION_ORDER"] = explosive["SITUATION"].map(SITUATION_ORDER).fillna(99)
+    explosive["_PLAY_NUM_ORDER"] = pd.to_numeric(explosive["PLAY #"], errors="coerce")
+    explosive = explosive.sort_values(
+        ["_SITUATION_ORDER", "_PLAY_NUM_ORDER"],
+        ascending=[True, True],
+        na_position="last",
+    )
     return explosive[columns].reset_index(drop=True)
 
 
