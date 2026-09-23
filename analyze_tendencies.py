@@ -32,7 +32,7 @@ def main():
 
     # Self-scout offense comes from the same WHS DATA source. ODK=O only.
     offense_df = load_offense_source_df(spreadsheet)
-    offense_report = analyze(offense_df)
+    offense_report = analyze(offense_df, target_source="ball_carrier")
     write_offense_self_scout(spreadsheet, offense_report)
 
     print(
