@@ -726,6 +726,59 @@ def repeated_play_followups(df, min_occurrences=2):
     )
 
 
+def passing_target_summary(df, min_occurrences=1):
+    """Summarize passing targets from BALL CARRIER with receiving yards."""
+    rows = []
+    for _, row in df.iterrows():
+        result = clean(row.get("RESULT", "")).upper()
+        if "INCOMPLETE" not in result and "COMPLETE" not in result:
+            continue
+        target = clean(row.get("BALL CARRIER", ""))
+        if not target:
+            continue
+        yards = numeric(row.get("GN/LS"))
+        if yards is None:
+            yards = result_yards(row.get("RESULT")) or 0
+        rows.append({"TARGET": target, "YARDS": yards})
+
+    columns = ["TARGET", "COUNT", "YARDS"]
+    if not rows:
+        return pd.DataFrame(columns=columns)
+
+    work = pd.DataFrame(rows)
+    summary = (
+        work.groupby("TARGET")
+        .agg(COUNT=("TARGET", "size"), YARDS=("YARDS", "sum"))
+        .reset_index()
+    )
+    return (
+        summary[summary["COUNT"] >= min_occurrences]
+        .sort_values(["COUNT", "YARDS", "TARGET"], ascending=[False, False, True])
+        .reset_index(drop=True)
+    )
+
+
+def rushing_tendencies(df, min_occurrences=1):
+    """Summarize rushing ball carriers with attempts and rushing yards."""
+    carrier = ball_carrier_identity(df, min_occurrences=1)
+    if carrier.empty:
+        return pd.DataFrame(columns=["BALL CARRIER", "COUNT", "YARDS"])
+
+    rush = carrier[carrier["ROLE"] == "RUSH"].copy()
+    if rush.empty:
+        return pd.DataFrame(columns=["BALL CARRIER", "COUNT", "YARDS"])
+
+    rush = (
+        rush.groupby("BALL CARRIER", as_index=False)
+        .agg(COUNT=("PLAYS", "sum"), YARDS=("YARDS", "sum"))
+    )
+    return (
+        rush[rush["COUNT"] >= min_occurrences]
+        .sort_values(["COUNT", "YARDS", "BALL CARRIER"], ascending=[False, False, True])
+        .reset_index(drop=True)
+    )
+
+
 def ball_carrier_identity(df, min_occurrences=1):
     """Summarize the actual offensive player recorded in BALL CARRIER."""
     rows = []
@@ -1623,6 +1676,8 @@ class TendencyReport:
     run_pass_yards: pd.DataFrame
     completed_comment_patterns: pd.DataFrame
     ball_carrier_identity: pd.DataFrame
+    passing_target_summary: pd.DataFrame
+    rushing_tendencies: pd.DataFrame
     formation_frequency: pd.DataFrame
     _summary_details: dict
 
@@ -1685,6 +1740,8 @@ def analyze(df):
         run_pass_yard_summary(df),
         completed_comment_patterns(df),
         ball_carrier_identity(df),
+        passing_target_summary(df),
+        rushing_tendencies(df),
         frequency_tendencies(df, "OFF FORM"),
         overall_summary(df),
     )
