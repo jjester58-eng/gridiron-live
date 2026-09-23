@@ -2,6 +2,9 @@ name: Gridiron Live Tendency Report
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   analyze:
