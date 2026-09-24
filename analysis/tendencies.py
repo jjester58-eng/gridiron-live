@@ -1240,18 +1240,15 @@ def field_zone_efficiency(df, defense_df=None, top_n=3):
             while len(cells) < top_n * 2:
                 cells.extend(["", ""])
 
-            rows.append({
-                "FIELD ZONE": zone,
-                "DOWN & DISTANCE": situation,
-                "RUN %": run_pct,
-                "PASS %": pass_pct,
-                "FORMATION 1": cells[0],
-                "DEF CALL": cells[1],
-                "FORMATION 2": cells[2],
-                "DEF CALL": cells[3],
-                "FORMATION 3": cells[4],
-                "DEF CALL": cells[5],
-            })
+            rows.append([
+                zone,
+                situation,
+                run_pct,
+                pass_pct,
+                cells[0], cells[1],
+                cells[2], cells[3],
+                cells[4], cells[5],
+            ])
 
     out = pd.DataFrame(rows, columns=columns)
     out["_ZONE_ORDER"] = out["FIELD ZONE"].map({z: i for i, z in enumerate(zones)})
@@ -1800,7 +1797,7 @@ class TendencyReport:
         return result
 
 
-def analyze(df, target_source="comments"):
+def analyze(df, target_source="comments", defense_df=None):
     missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
     if missing:
         raise ValueError(f"Missing required columns: {missing}")
@@ -1837,7 +1834,7 @@ def analyze(df, target_source="comments"):
         general_play_type_frequency(df),
         situation_sequence_analysis(df),
         situation_play_calling_patterns(df),
-        field_zone_efficiency(df),
+        field_zone_efficiency(df, defense_df=defense_df),
         field_zone_by_hash(df),
         down_efficiency(df),
         three_and_out_analysis(df),
