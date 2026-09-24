@@ -127,6 +127,28 @@ def normalize_blitz(value):
     return clean(value)
 
 
+def _field_zone(value):
+    """Map YARD LN to the same field zones used by Tendencies."""
+    yard = numeric(value)
+    if yard is None:
+        return ""
+    yard = abs(yard) if yard < 0 else yard
+    raw = numeric(value)
+    if raw < 0:
+        if yard <= 20:
+            return "OWN 1-20"
+        if yard <= 40:
+            return "OWN 21-40"
+        return "OWN 41-49"
+    if raw == 50 or raw >= 41:
+        return "MIDFIELD"
+    if raw >= 21:
+        return "OPP 21-40"
+    if raw >= 1:
+        return "RED ZONE"
+    return "MIDFIELD"
+
+
 def situation_bucket(down, distance):
     down_value = numeric(down)
     distance_value = numeric(distance)
