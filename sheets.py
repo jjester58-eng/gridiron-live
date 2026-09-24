@@ -358,7 +358,7 @@ def write_offense_self_scout(spreadsheet, report):
     # PLAY / FORMATION / TARGET table on the left and a TARGET / COUNT
     # rollup on the right. For OFF SELF SCOUT, TARGET comes from BALL CARRIER.
     grid.append(["PASSING TENDENCIES", "", "", "", "", "", "PASSING TENDENCIES"])
-    completion_values = dataframe_values(report.completed_comment_patterns)
+    completion_values = dataframe_values(report.passing_play_formation_counts)
     target_summary_values = dataframe_values(report.passing_target_summary)
     detail_width = max(
         (len(row) for row in completion_values),
