@@ -26,10 +26,10 @@ def main():
     # so only ODK=D snaps are sent to the defensive analyzer.
     defense_df = load_defense_source_df(spreadsheet)
 
-    # Build the main Tendencies report with WHS defensive history available.
-    # This lets PLAY EFFICIENCY — FIELD ZONES pair opponent formations with
-    # historical WHS defensive calls in the same field zone + situation.
-    report = analyze(df, defense_df=defense_df)
+    # Build the main Tendencies report from opponent data only.
+    # The separate bottom formation/call matrix combines this opponent data
+    # with WHS DATA defensive history.
+    report = analyze(df)
 
     # Compare opponent frequency to WHS defensive results for matching
     # down/distance + offensive formation situations.
