@@ -638,11 +638,34 @@ def formation_call_matrix(opponent_df, defense_df, min_call_plays=3, top_n=3):
         d["DEF CALL"] = d["DEF CALL"].map(clean)
 
         def success(row):
+            """Measure defensive success relative to the down/distance."""
             yards = result_yards(row)
             result = result_blob(row)
-            if any(x in result for x in ("INCOMPLETE", "INTERCEPTION", "INTERCEPTED", "FUMBLE", "FUMBLED")):
+            if any(x in result for x in (
+                "INCOMPLETE", "INTERCEPTION", "INTERCEPTED",
+                "FUMBLE", "FUMBLED", "SACK",
+            )):
                 return True
-            return yards is not None and yards <= 5
+            if yards is None:
+                return False
+
+            down = numeric(row.get("DN"))
+            distance = numeric(row.get("DIST"))
+            if down is None or distance is None:
+                return yards <= 5
+
+            down = int(down)
+            distance = max(0, distance)
+
+            # Standard down-success thresholds:
+            # 1st: prevent 40% of the line to gain
+            # 2nd: prevent 60% of the line to gain
+            # 3rd/4th: prevent the first down
+            if down == 1:
+                return yards <= distance * 0.40
+            if down == 2:
+                return yards <= distance * 0.60
+            return yards < distance
 
         d["_SUCCESS"] = d.apply(success, axis=1)
         d = d[
