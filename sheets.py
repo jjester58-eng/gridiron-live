@@ -306,30 +306,6 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
             worksheet.update([["No matching WHS defensive data"]], f"A{row}")
             row += 3
 
-    # Opponent × WHS defensive self-scout. ALL INFO SHEET tells us what the
-    # opponent does; WHS DATA tells us how our defense has handled the same
-    # situation + formation historically.
-    if matchup_report is not None:
-        worksheet.update([["OPPONENT × WHS DEFENSIVE SELF-SCOUT"]], f"A{row}")
-        row += 1
-        worksheet.update([[
-            "ALL INFO SHEET = opponent frequency | WHS DATA = our defensive results"
-        ]], f"A{row}")
-        row += 2
-
-        for title, section in [
-            ("HIGH-FREQUENCY MATCHUPS", matchup_report.context),
-            ("DEFENSIVE CALL COMPARISON", matchup_report.calls),
-        ]:
-            worksheet.update([[title]], f"A{row}")
-            row += 1
-            values = dataframe_values(section)
-            if values:
-                worksheet.update(values, f"A{row}")
-                row += len(values) + 2
-            else:
-                worksheet.update([["No comparable sample"]], f"A{row}")
-                row += 3
 
     return worksheet
 
