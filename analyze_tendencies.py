@@ -21,11 +21,15 @@ def main():
 
     # Opponent scouting remains on ALL INFO SHEET -> Tendencies.
     df = load_source_df(spreadsheet)
-    report = analyze(df)
 
     # Self-scout defense comes from WHS DATA. WHS DATA contains O/D/K,
     # so only ODK=D snaps are sent to the defensive analyzer.
     defense_df = load_defense_source_df(spreadsheet)
+
+    # Build the main Tendencies report with WHS defensive history available.
+    # This lets PLAY EFFICIENCY — FIELD ZONES pair opponent formations with
+    # historical WHS defensive calls in the same field zone + situation.
+    report = analyze(df, defense_df=defense_df)
 
     # Compare opponent frequency to WHS defensive results for matching
     # down/distance + offensive formation situations.
