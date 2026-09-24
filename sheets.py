@@ -354,11 +354,11 @@ def write_offense_self_scout(spreadsheet, report):
 
     grid = [top_line, []]
 
-    # Keep all three offensive identity tables on the same row block:
-    # left = PLAY / FORMATION / COUNT, middle = TARGET / COUNT / YARDS,
+    # Keep all three offensive identity tables on the same row block A:I:
+    # left = PLAY / FORMATION / blank / COUNT, middle = TARGET / COUNT / YARDS,
     # right = BALL CARRIER / COUNT / YARDS.
     grid.append([
-        "PASSING TENDENCIES", "", "", "PASSING TENDENCIES", "", "",
+        "PASSING TENDENCIES", "", "", "", "PASSING TENDENCIES", "", "",
         "RUSHING TENDENCIES", "", ""
     ])
 
@@ -366,8 +366,8 @@ def write_offense_self_scout(spreadsheet, report):
     target_summary_values = dataframe_values(report.passing_target_summary)
     rushing_values = dataframe_values(report.rushing_tendencies)
 
-    # Normalize the left table to PLAY / FORMATION / blank / COUNT / blank
-    # so the three blocks line up cleanly across A:J.
+    # Normalize the left table to PLAY / FORMATION / blank / COUNT
+    # so the three blocks line up cleanly across A:I.
     def normalize_play_formation(rows):
         if not rows:
             return []
@@ -378,7 +378,6 @@ def write_offense_self_scout(spreadsheet, report):
                 row[1] if len(row) > 1 else "",
                 "",
                 row[3] if len(row) > 3 else (row[2] if len(row) > 2 else ""),
-                "",
             ])
         return output
 
