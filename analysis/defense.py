@@ -592,7 +592,7 @@ def formation_call_matrix(opponent_df, defense_df, min_call_plays=2, top_n=3):
     columns = [
         "DOWN & DISTANCE", "RUN %", "PASS %",
         "FORMATION 1", "DEF CALL", "FORMATION 2", "DEF CALL",
-        "FORMATION 3", "DEF CALL",
+        "FORMATION 3", "DEF CALL", "BEST CALL",
     ]
 
     if opponent_df is None or opponent_df.empty:
@@ -686,12 +686,43 @@ def formation_call_matrix(opponent_df, defense_df, min_call_plays=2, top_n=3):
             ).round(1)
             stats = stats[stats["PLAYS"] >= min_call_plays]
 
+            # Best call by formation + situation for the three formation
+            # columns in the chart.
             for key, group in stats.groupby(["SITUATION", "_FORMATION_KEY"]):
                 ranked = group.sort_values(
                     ["SUCCESS %", "PLAYS", "DEF CALL"],
                     ascending=[False, False, True],
                 )
                 call_lookup[key] = ranked.iloc[0]["DEF CALL"]
+
+            # Best call by down/distance alone. This intentionally ignores
+            # formation so the final BEST CALL column answers:
+            # "Across all of our historical defensive snaps in this
+            # situation, which DEF CALL had the highest success rate?"
+            situation_call_lookup = {}
+            situation_stats = d.groupby(
+                ["SITUATION", "DEF CALL"]
+            ).agg(
+                PLAYS=("_SUCCESS", "size"),
+                SUCCESS=("_SUCCESS", "sum"),
+            ).reset_index()
+            situation_stats["SUCCESS %"] = (
+                situation_stats["SUCCESS"] / situation_stats["PLAYS"] * 100
+            ).round(1)
+            situation_stats = situation_stats[
+                situation_stats["PLAYS"] >= min_call_plays
+            ]
+
+            for situation, group in situation_stats.groupby("SITUATION"):
+                ranked = group.sort_values(
+                    ["SUCCESS %", "PLAYS", "DEF CALL"],
+                    ascending=[False, False, True],
+                )
+                best = ranked.iloc[0]
+                situation_call_lookup[situation] = (
+                    f"{best['DEF CALL']} ({best['SUCCESS %']}%, "
+                    f"{int(best['PLAYS'])} plays)"
+                )
 
     rows = []
     for situation in situations:
@@ -723,9 +754,11 @@ def formation_call_matrix(opponent_df, defense_df, min_call_plays=2, top_n=3):
             cells.extend([form, call])
 
         cells += [""] * (top_n * 2 - len(cells))
+        best_call = situation_call_lookup.get(situation, "")
         rows.append([
             situation, run_pct, pass_pct,
             cells[0], cells[1], cells[2], cells[3], cells[4], cells[5],
+            best_call,
         ])
 
     return pd.DataFrame(rows, columns=columns)
