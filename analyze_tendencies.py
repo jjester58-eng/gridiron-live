@@ -13,7 +13,7 @@ from sheets import (
     write_offense_self_scout,
 )
 from analysis.tendencies import analyze
-from analysis.defense import analyze_defense, analyze_matchup
+from analysis.defense import analyze_defense, analyze_matchup, formation_call_matrix
 
 
 def main():
@@ -34,8 +34,9 @@ def main():
     # Compare opponent frequency to WHS defensive results for matching
     # down/distance + offensive formation situations.
     matchup_report = analyze_matchup(df, defense_df)
+    formation_call_report = formation_call_matrix(df, defense_df)
 
-    write_report(spreadsheet, report, matchup_report)
+    write_report(spreadsheet, report, matchup_report, formation_call_report)
     defense_report = analyze_defense(defense_df)
     write_defense_sheet(spreadsheet, defense_report)
 
