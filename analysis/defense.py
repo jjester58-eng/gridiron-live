@@ -577,25 +577,20 @@ def _matchup_context(opponent_df, defense_df, min_opponent=3, min_defense=5):
 
 
 def formation_call_matrix(opponent_df, defense_df, min_call_plays=2, top_n=3):
-    """Build the bottom Tendencies formation/call matrix.
+    """Compare opponent formations in ALL INFO with WHS defensive calls by situation.
 
-    ALL INFO SHEET supplies the opponent's field zone, situation, run/pass
-    mix, and top formations.
-
-    WHS DATA supplies historical defensive calls. The defensive comparison is
-    intentionally broader than field-zone matching: for each opponent
-    formation/situation found in ALL INFO SHEET, look for WHS DATA snaps with
-    the same down/distance + offensive formation and report the historically
-    most successful DEF CALL.
+    ALL INFO SHEET supplies the opponent run/pass mix and top formations for
+    each down/distance situation. WHS DATA supplies the historical DEF CALL
+    results for those same situations and formations. Field position/field
+    zones are intentionally not used in this comparison.
     """
-    zones = ["OWN 1-20", "OWN 21-40", "OWN 41-49", "MIDFIELD", "OPP 21-40", "RED ZONE"]
     situations = [
         "1st & Long (10+)", "2nd & Long (7+)", "2nd & Medium (4-6)",
         "2nd & Short (1-3)", "3rd & Long (7+)", "3rd & Medium (4-6)",
         "3rd & Short (1-3)",
     ]
     columns = [
-        "FIELD ZONE", "DOWN & DISTANCE", "RUN %", "PASS %",
+        "DOWN & DISTANCE", "RUN %", "PASS %",
         "FORMATION 1", "DEF CALL", "FORMATION 2", "DEF CALL",
         "FORMATION 3", "DEF CALL",
     ]
@@ -604,19 +599,18 @@ def formation_call_matrix(opponent_df, defense_df, min_call_plays=2, top_n=3):
         return pd.DataFrame(columns=columns)
 
     opp = opponent_df.copy()
-    opp["FIELD ZONE"] = opp["YARD LN"].map(_field_zone)
     opp["SITUATION"] = [
         situation_bucket(d, dist) for d, dist in zip(opp["DN"], opp["DIST"])
     ]
     opp["FORMATION"] = opp["OFF FORM"].map(clean)
     opp["_RUN"] = opp.apply(lambda r: int(play_type(r) == "RUN"), axis=1)
     opp["_PASS"] = opp.apply(lambda r: int(play_type(r) == "PASS"), axis=1)
-    opp = opp[opp["FIELD ZONE"].isin(zones) & opp["SITUATION"].isin(situations)].copy()
+    opp = opp[opp["SITUATION"].isin(situations)].copy()
 
     if opp.empty:
         return pd.DataFrame(columns=columns)
 
-    mix = opp.groupby(["FIELD ZONE", "SITUATION"]).agg(
+    mix = opp.groupby("SITUATION").agg(
         PLAYS=("_RUN", "size"), RUN=("_RUN", "sum"), PASS=("_PASS", "sum")
     ).reset_index()
     mix["RUN %"] = (mix["RUN"] / mix["PLAYS"] * 100).round(1)
@@ -624,17 +618,15 @@ def formation_call_matrix(opponent_df, defense_df, min_call_plays=2, top_n=3):
 
     formations = (
         opp[opp["FORMATION"] != ""]
-        .groupby(["FIELD ZONE", "SITUATION", "FORMATION"])
+        .groupby(["SITUATION", "FORMATION"])
         .size().reset_index(name="PLAYS")
         .sort_values(
-            ["FIELD ZONE", "SITUATION", "PLAYS", "FORMATION"],
-            ascending=[True, True, False, True],
+            ["SITUATION", "PLAYS", "FORMATION"],
+            ascending=[True, False, True],
         )
     )
 
-    # WHS DATA is matched by the same situation + offensive formation.
-    # Field zone is NOT required to match because the user wants the WHS
-    # defensive history analyzed for the formations/situations found in ALL INFO.
+    # WHS DATA is matched only by situation + offensive formation.
     call_lookup = {}
     if defense_df is not None and not defense_df.empty:
         d = defense_df.copy()
@@ -653,7 +645,6 @@ def formation_call_matrix(opponent_df, defense_df, min_call_plays=2, top_n=3):
         d["_FORMATION_KEY"] = d["FORMATION"].map(formation_key)
 
         def success(row):
-            """Measure defensive success relative to the down/distance."""
             yards = result_yards(row)
             result = result_blob(row)
             if any(x in result for x in (
@@ -669,11 +660,10 @@ def formation_call_matrix(opponent_df, defense_df, min_call_plays=2, top_n=3):
             if down is None or distance is None:
                 return yards <= 5
 
-            down = int(down)
             distance = max(0, distance)
-            if down == 1:
+            if int(down) == 1:
                 return yards <= distance * 0.40
-            if down == 2:
+            if int(down) == 2:
                 return yards <= distance * 0.60
             return yards < distance
 
@@ -691,7 +681,9 @@ def formation_call_matrix(opponent_df, defense_df, min_call_plays=2, top_n=3):
                 PLAYS=("_SUCCESS", "size"),
                 SUCCESS=("_SUCCESS", "sum"),
             ).reset_index()
-            stats["SUCCESS %"] = (stats["SUCCESS"] / stats["PLAYS"] * 100).round(1)
+            stats["SUCCESS %"] = (
+                stats["SUCCESS"] / stats["PLAYS"] * 100
+            ).round(1)
             stats = stats[stats["PLAYS"] >= min_call_plays]
 
             for key, group in stats.groupby(["SITUATION", "_FORMATION_KEY"]):
@@ -702,39 +694,39 @@ def formation_call_matrix(opponent_df, defense_df, min_call_plays=2, top_n=3):
                 call_lookup[key] = ranked.iloc[0]["DEF CALL"]
 
     rows = []
-    for zone in zones:
-        for situation in situations:
-            m = mix[(mix["FIELD ZONE"] == zone) & (mix["SITUATION"] == situation)]
-            run_pct = m.iloc[0]["RUN %"] if not m.empty else ""
-            pass_pct = m.iloc[0]["PASS %"] if not m.empty else ""
-            forms = formations[
-                (formations["FIELD ZONE"] == zone)
-                & (formations["SITUATION"] == situation)
-            ].head(top_n)
+    for situation in situations:
+        m = mix[mix["SITUATION"] == situation]
+        run_pct = m.iloc[0]["RUN %"] if not m.empty else ""
+        pass_pct = m.iloc[0]["PASS %"] if not m.empty else ""
 
-            cells = []
-            for form in forms["FORMATION"].tolist():
-                form_key = re.sub(r"[^A-Z0-9]", "", clean(form).upper())
-                call = call_lookup.get((situation, form_key), "")
+        forms = formations[
+            formations["SITUATION"] == situation
+        ].head(top_n)
 
-                # Allow clear formation-family variants, e.g. TRIPS RIGHT/TRIPS.
-                if not call and form_key:
-                    candidates = [
-                        (k, v) for k, v in call_lookup.items()
-                        if k[0] == situation
-                        and (k[1] in form_key or form_key in k[1])
-                    ]
-                    if candidates:
-                        candidates.sort(key=lambda item: (len(item[0][1]), item[1]))
-                        call = candidates[0][1]
+        cells = []
+        for form in forms["FORMATION"].tolist():
+            form_key = re.sub(r"[^A-Z0-9]", "", clean(form).upper())
+            call = call_lookup.get((situation, form_key), "")
 
-                cells.extend([form, call])
+            if not call and form_key:
+                candidates = [
+                    (k, v) for k, v in call_lookup.items()
+                    if k[0] == situation
+                    and (k[1] in form_key or form_key in k[1])
+                ]
+                if candidates:
+                    candidates.sort(
+                        key=lambda item: (len(item[0][1]), item[1])
+                    )
+                    call = candidates[0][1]
 
-            cells += [""] * (top_n * 2 - len(cells))
-            rows.append([
-                zone, situation, run_pct, pass_pct,
-                cells[0], cells[1], cells[2], cells[3], cells[4], cells[5],
-            ])
+            cells.extend([form, call])
+
+        cells += [""] * (top_n * 2 - len(cells))
+        rows.append([
+            situation, run_pct, pass_pct,
+            cells[0], cells[1], cells[2], cells[3], cells[4], cells[5],
+        ])
 
     return pd.DataFrame(rows, columns=columns)
 
