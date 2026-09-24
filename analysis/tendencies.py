@@ -1075,221 +1075,97 @@ def normalize_favorite_play(value):
     text = clean(value)
     return re.sub(r"\s+(?:L|R)$", "", text, flags=re.IGNORECASE).strip()
 
-def field_zone_efficiency_original(df, defense_df=None, top_n=3):
-    """Show opponent run/pass mix by field zone + down/distance and pair
-    the top opponent formations with WHS defensive calls that historically
-    produced the highest success rate in the same zone + situation.
+def field_zone_efficiency(df, top_n=3):
+    """Measure play volume and production within each field zone."""
+    rows = []
 
-    Defensive success uses down/distance: under 40% of needed yards on
-    1st down, under 60% on 2nd, and short of the line to gain on 3rd/4th.
-    Incompletions and turnovers also count as defensive successes. The call
-    must have at least three WHS defensive snaps in the matching zone +
-    situation + formation.
-    This is descriptive historical data, not a future call recommendation.
-    """
-    situations = [
-        "1st & Long (10+)",
-        "2nd & Long (7+)",
-        "2nd & Medium (4-6)",
-        "2nd & Short (1-3)",
-        "3rd & Long (7+)",
-        "3rd & Medium (4-6)",
-        "3rd & Short (1-3)",
-    ]
-    zones = [
-        "OWN 1-20",
-        "OWN 21-40",
-        "OWN 41-49",
-        "MIDFIELD",
-        "OPP 21-40",
-        "RED ZONE",
-    ]
+    for _, row in df.iterrows():
+        zone = field_zone(row.get("YARD LN"))
+        if not zone:
+            continue
+
+        yards = numeric(row.get("GN/LS"))
+        if yards is None:
+            yards = result_yards(row.get("RESULT")) or 0
+
+        rows.append({
+            "FIELD ZONE": zone,
+            "PLAY": normalize_favorite_play(play_label(row)),
+            "PLAYS": 1,
+            "RUN": int(is_run(row)),
+            "PASS": int(is_pass(row)),
+            "YARDS": yards,
+        })
+
     columns = [
-        "FIELD ZONE", "DOWN & DISTANCE", "RUN %", "PASS %",
-        "FORMATION 1", "DEF CALL", "FORMATION 2", "DEF CALL",
-        "FORMATION 3", "DEF CALL",
+        "FIELD ZONE", "PLAYS", "RUN %", "PASS %", "PLAY MIX",
+        "YARDS", "YARDS/PLAY", "PLAY 1", "PLAY 2", "PLAY 3",
     ]
 
-    if df is None or df.empty:
+    if not rows:
         return pd.DataFrame(columns=columns)
 
-    work = df.copy()
-    work["FIELD ZONE"] = work["YARD LN"].map(field_zone)
-    work["SITUATION"] = [
-        situation_bucket(d, dist)
-        for d, dist in zip(work["DN"], work["DIST"])
-    ]
-    work["FORMATION"] = work["OFF FORM"].map(clean)
-    work = work[
-        work["FIELD ZONE"].isin(zones)
-        & work["SITUATION"].isin(situations)
-    ].copy()
+    work = pd.DataFrame(rows)
 
-    if work.empty:
-        return pd.DataFrame(columns=columns)
-
-    # Run/pass mix for each field-zone + down/distance row.
-    work["_RUN"] = work.apply(is_run, axis=1).astype(int)
-    work["_PASS"] = work.apply(is_pass, axis=1).astype(int)
-
-    mix = (
-        work.groupby(["FIELD ZONE", "SITUATION"])
-        .agg(PLAYS=("_RUN", "size"), RUN=("_RUN", "sum"), PASS=("_PASS", "sum"))
+    out = (
+        work.groupby("FIELD ZONE")
+        .agg(
+            PLAYS=("PLAYS", "sum"),
+            RUN=("RUN", "sum"),
+            PASS=("PASS", "sum"),
+            YARDS=("YARDS", "sum"),
+        )
         .reset_index()
     )
-    mix["RUN %"] = (mix["RUN"] / mix["PLAYS"] * 100).round(1)
-    mix["PASS %"] = (mix["PASS"] / mix["PLAYS"] * 100).round(1)
 
-    # Top formations are based on opponent frequency in the exact zone +
-    # down/distance situation. Ignore blank formation labels.
-    formation_counts = (
-        work[work["FORMATION"] != ""]
-        .groupby(["FIELD ZONE", "SITUATION", "FORMATION"])
+    play_counts = (
+        work[work["PLAY"].map(clean) != ""]
+        .groupby(["FIELD ZONE", "PLAY"])
         .size()
-        .reset_index(name="PLAYS")
+        .reset_index(name="PLAY_COUNT")
         .sort_values(
-            ["FIELD ZONE", "SITUATION", "PLAYS", "FORMATION"],
-            ascending=[True, True, False, True],
+            ["FIELD ZONE", "PLAY_COUNT", "PLAY"],
+            ascending=[True, False, True],
         )
     )
 
-    defense_lookup = {}
-    if defense_df is not None and not defense_df.empty:
-        defense = defense_df.copy()
-        defense["FIELD ZONE"] = defense["YARD LN"].map(field_zone)
-        defense["SITUATION"] = [
-            situation_bucket(d, dist)
-            for d, dist in zip(defense["DN"], defense["DIST"])
-        ]
-        defense["FORMATION"] = defense["OFF FORM"].map(clean)
-        defense["DEF CALL CLEAN"] = defense["DEF CALL"].map(clean)
+    favorite_rows = []
+    for zone, group in play_counts.groupby("FIELD ZONE", sort=False):
+        favorites = [clean(play) for play in group["PLAY"].head(top_n)]
+        favorite_rows.append({
+            "FIELD ZONE": zone,
+            "PLAY 1": favorites[0] if len(favorites) > 0 else "",
+            "PLAY 2": favorites[1] if len(favorites) > 1 else "",
+            "PLAY 3": favorites[2] if len(favorites) > 2 else "",
+        })
 
-        def defensive_success(row):
-            """Count a defensive success using down/distance, not a fixed
-            yardage cutoff.
+    favorites_df = pd.DataFrame(favorite_rows)
+    out = out.merge(favorites_df, on="FIELD ZONE", how="left")
 
-            1st down: offense gains <40% of the needed yards.
-            2nd down: offense gains <60% of the needed yards.
-            3rd/4th down: offense fails to gain the needed yards.
-            Incompletions and turnovers are also defensive successes.
-            """
-            yards = numeric(row.get("GN/LS"))
-            if yards is None:
-                yards = result_yards(row.get("RESULT"))
-            result = clean(row.get("RESULT")).upper()
-
-            if any(term in result for term in [
-                "INCOMPLETE", "INTERCEPTION", "INT", "FUMBLE"
-            ]):
-                return True
-
-            down = numeric(row.get("DN"))
-            dist = numeric(row.get("DIST"))
-            if yards is None or down is None or dist is None:
-                return False
-
-            down = int(down)
-            dist = max(0, dist)
-            if down == 1:
-                threshold = dist * 0.40
-            elif down == 2:
-                threshold = dist * 0.60
-            else:
-                threshold = dist
-
-            return yards < threshold
-
-        defense["_SUCCESS"] = defense.apply(defensive_success, axis=1)
-        defense = defense[
-            defense["FIELD ZONE"].isin(zones)
-            & defense["SITUATION"].isin(situations)
-            & (defense["FORMATION"] != "")
-            & (defense["DEF CALL CLEAN"] != "")
-        ].copy()
-
-        if not defense.empty:
-            call_stats = (
-                defense.groupby(
-                    ["FIELD ZONE", "SITUATION", "FORMATION", "DEF CALL CLEAN"]
-                )
-                .agg(
-                    PLAYS=("_SUCCESS", "size"),
-                    SUCCESS=("_SUCCESS", "sum"),
-                    AVG_YDS=("GN/LS", lambda s: pd.to_numeric(s, errors="coerce").mean()),
-                )
-                .reset_index()
-            )
-            call_stats["SUCCESS %"] = (
-                call_stats["SUCCESS"] / call_stats["PLAYS"] * 100
-            ).round(1)
-            call_stats["AVG YDS"] = pd.to_numeric(
-                call_stats["AVG_YDS"], errors="coerce"
-            )
-
-            # Minimum sample protects against a one-play call appearing as
-            # the "best" historical call.
-            call_stats = call_stats[call_stats["PLAYS"] >= 3].copy()
-
-            for key, group in call_stats.groupby(
-                ["FIELD ZONE", "SITUATION", "FORMATION"]
-            ):
-                ranked = group.sort_values(
-                    ["SUCCESS %", "AVG YDS", "PLAYS", "DEF CALL CLEAN"],
-                    ascending=[False, True, False, True],
-                )
-                defense_lookup[key] = ranked.iloc[0]["DEF CALL CLEAN"]
-
-    rows = []
-    for zone in zones:
-        for situation in situations:
-            match = mix[
-                (mix["FIELD ZONE"] == zone)
-                & (mix["SITUATION"] == situation)
-            ]
-            run_pct = match.iloc[0]["RUN %"] if not match.empty else ""
-            pass_pct = match.iloc[0]["PASS %"] if not match.empty else ""
-
-            forms = formation_counts[
-                (formation_counts["FIELD ZONE"] == zone)
-                & (formation_counts["SITUATION"] == situation)
-            ].head(top_n)
-
-            cells = []
-            for formation in forms["FORMATION"].tolist():
-                call = defense_lookup.get((zone, situation, formation), "")
-                cells.extend([formation, call])
-
-            while len(cells) < top_n * 2:
-                cells.extend(["", ""])
-
-            rows.append([
-                zone,
-                situation,
-                run_pct,
-                pass_pct,
-                cells[0], cells[1],
-                cells[2], cells[3],
-                cells[4], cells[5],
-            ])
-
-    out = pd.DataFrame(rows, columns=columns)
-    out["_ZONE_ORDER"] = out["FIELD ZONE"].map({z: i for i, z in enumerate(zones)})
-    out["_SITUATION_ORDER"] = out["DOWN & DISTANCE"].map(
-        {s: i for i, s in enumerate(situations)}
+    out["RUN %"] = (out["RUN"] / out["PLAYS"] * 100).round(1)
+    out["PASS %"] = (out["PASS"] / out["PLAYS"] * 100).round(1)
+    out["PLAY MIX"] = out.apply(
+        lambda r: f"{int(r['PLAYS'])} Plays {r['RUN %']:.0f}% Run {r['PASS %']:.0f}% Pass",
+        axis=1,
     )
+    out["YARDS/PLAY"] = (out["YARDS"] / out["PLAYS"]).round(1)
+
+    order = {
+        "OWN 1-20": 1,
+        "OWN 21-40": 2,
+        "OWN 41-49": 3,
+        "MIDFIELD": 4,
+        "OPP 21-40": 5,
+        "RED ZONE": 6,
+    }
+    out["_ORDER"] = out["FIELD ZONE"].map(order).fillna(99)
+
     return (
-        out.sort_values(["_ZONE_ORDER", "_SITUATION_ORDER"])
-        .drop(columns=["_ZONE_ORDER", "_SITUATION_ORDER"])
+        out.sort_values("_ORDER")
+        .drop(columns=["_ORDER", "RUN", "PASS"])
+        .loc[:, columns]
         .reset_index(drop=True)
     )
-
-def field_zone_efficiency(df, top_n=3):
-    """Existing field-zone efficiency table: opponent run/pass mix plus
-    top formations. Defensive calls are intentionally handled in a separate
-    bottom-of-report chart from WHS DATA where ODK == D."""
-    return field_zone_efficiency_original(df, top_n=top_n)
-
-
 
 def field_zone_by_hash(df, top_n=3):
     """Measure play volume/production within each field zone + hash."""
@@ -1827,7 +1703,7 @@ class TendencyReport:
         return result
 
 
-def analyze(df, target_source="comments", defense_df=None):
+def analyze(df, target_source="comments"):
     missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
     if missing:
         raise ValueError(f"Missing required columns: {missing}")
@@ -1864,7 +1740,7 @@ def analyze(df, target_source="comments", defense_df=None):
         general_play_type_frequency(df),
         situation_sequence_analysis(df),
         situation_play_calling_patterns(df),
-        field_zone_efficiency(df, defense_df=defense_df),
+        field_zone_efficiency(df),
         field_zone_by_hash(df),
         down_efficiency(df),
         three_and_out_analysis(df),
