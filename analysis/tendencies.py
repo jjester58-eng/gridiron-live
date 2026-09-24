@@ -915,6 +915,40 @@ def completed_comment_patterns(df, min_occurrences=1, target_source="comments"):
         ascending=[True, True, False, True],
     ).reset_index(drop=True)
 
+def passing_play_formation_counts(df, min_occurrences=1):
+    """Count passing play calls by PLAY and FORMATION for OFF SELF SCOUT."""
+    rows = []
+
+    for _, row in df.iterrows():
+        result = clean(row.get("RESULT", "")).upper()
+        if "INCOMPLETE" not in result and "COMPLETE" not in result:
+            continue
+
+        play = play_name(row)
+        formation = clean(row.get("OFF FORM", ""))
+        if not play or not formation:
+            continue
+
+        rows.append({"PLAY": play, "FORMATION": formation})
+
+    columns = ["PLAY", "FORMATION", "", "COUNT", ""]
+    if not rows:
+        return pd.DataFrame(columns=columns)
+
+    work = pd.DataFrame(rows)
+    summary = (
+        work.groupby(["PLAY", "FORMATION"])
+        .size()
+        .reset_index(name="COUNT")
+    )
+    summary = summary[summary["COUNT"] >= min_occurrences]
+    summary[""] = ""
+    return summary[["PLAY", "FORMATION", "", "COUNT"]].sort_values(
+        ["PLAY", "FORMATION", "COUNT"],
+        ascending=[True, True, False],
+    ).reset_index(drop=True)
+
+
 def overall_summary(df):
     """Compact top-of-sheet game summary."""
     work = df.copy()
@@ -1687,6 +1721,7 @@ class TendencyReport:
     frequency_by_direction: pd.DataFrame
     run_pass_yards: pd.DataFrame
     completed_comment_patterns: pd.DataFrame
+    passing_play_formation_counts: pd.DataFrame
     ball_carrier_identity: pd.DataFrame
     passing_target_summary: pd.DataFrame
     rushing_tendencies: pd.DataFrame
@@ -1751,6 +1786,7 @@ def analyze(df, target_source="comments"):
         frequency_profile(df, "PLAY DIR"),
         run_pass_yard_summary(df),
         completed_comment_patterns(df, target_source=target_source),
+        passing_play_formation_counts(df),
         ball_carrier_identity(df),
         passing_target_summary(df, target_source=target_source),
         rushing_tendencies(df),
