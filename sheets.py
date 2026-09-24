@@ -354,49 +354,46 @@ def write_offense_self_scout(spreadsheet, report):
 
     grid = [top_line, []]
 
-    # Match the Tendencies page: PASSING TENDENCIES has the detailed
-    # PLAY / FORMATION / TARGET table on the left and a TARGET / COUNT
-    # rollup on the right. For OFF SELF SCOUT, TARGET comes from BALL CARRIER.
-    grid.append(["PASSING TENDENCIES", "", "", "", "", "", "PASSING TENDENCIES"])
-    completion_values = dataframe_values(report.passing_play_formation_counts)
-    target_summary_values = dataframe_values(report.passing_target_summary)
-    detail_width = max(
-        (len(row) for row in completion_values),
-        default=5,
-    )
-    summary_start_col = 7  # Column G
-    detail_height = len(completion_values)
-    summary_height = len(target_summary_values)
-    block_height = max(detail_height, summary_height)
+    # Keep all three offensive identity tables on the same row block:
+    # left = PLAY / FORMATION / COUNT, middle = TARGET / COUNT / YARDS,
+    # right = BALL CARRIER / COUNT / YARDS.
+    grid.append([
+        "PASSING TENDENCIES", "", "", "PASSING TENDENCIES", "", "",
+        "RUSHING TENDENCIES", "", ""
+    ])
 
+    play_formation_values = dataframe_values(report.passing_play_formation_counts)
+    target_summary_values = dataframe_values(report.passing_target_summary)
+    rushing_values = dataframe_values(report.rushing_tendencies)
+
+    # Normalize the left table to PLAY / FORMATION / blank / COUNT / blank
+    # so the three blocks line up cleanly across A:J.
+    def normalize_play_formation(rows):
+        if not rows:
+            return []
+        output = [["PLAY", "FORMATION", "", "COUNT", ""]]
+        for row in rows[1:]:
+            output.append([
+                row[0] if len(row) > 0 else "",
+                row[1] if len(row) > 1 else "",
+                "",
+                row[3] if len(row) > 3 else (row[2] if len(row) > 2 else ""),
+                "",
+            ])
+        return output
+
+    left_values = normalize_play_formation(play_formation_values)
+    middle_values = target_summary_values
+    right_values = rushing_values
+
+    block_height = max(len(left_values), len(middle_values), len(right_values), 1)
     for i in range(block_height):
-        left = (
-            completion_values[i]
-            if i < detail_height
-            else []
-        )
-        right = (
-            target_summary_values[i]
-            if i < summary_height
-            else []
-        )
-        row_values = (
-            left
-            + [""] * max(0, summary_start_col - len(left) - 1)
-            + right
-        )
-        grid.append(row_values)
+        left = left_values[i] if i < len(left_values) else ["", "", "", "", ""]
+        middle = middle_values[i] if i < len(middle_values) else ["", "", ""]
+        right = right_values[i] if i < len(right_values) else ["", "", ""]
+        grid.append(left + middle + right)
 
     grid.extend([[], []])
-
-    # Rushing tendencies follows the passing tendencies as a third table.
-    grid.append(["RUSHING TENDENCIES"])
-    rushing_values = dataframe_values(report.rushing_tendencies)
-    if rushing_values:
-        grid.extend(rushing_values)
-        grid.extend([[], []])
-    else:
-        grid.extend([["No data"], [], []])
 
     for title, section in sections:
         grid.append([title])
