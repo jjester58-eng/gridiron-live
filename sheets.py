@@ -11,7 +11,7 @@ import re
 import pandas as pd
 from google.oauth2.service_account import Credentials
 
-from analysis.defense import DEFENSIVE_COLUMNS
+from analysis.defense import DEFENSIVE_COLUMNS, analyze_matchup
 from config import (
     DEFENSE_OUTPUT_SHEET_NAME,
     DEFENSE_SOURCE_SHEET_NAME,
@@ -203,7 +203,7 @@ def _summarize_like_terms(df):
     ).reset_index(drop=True)
 
 
-def write_report(spreadsheet, report):
+def write_report(spreadsheet, report, matchup_report=None):
     existing = {w.title for w in spreadsheet.worksheets()}
 
     worksheet = (
@@ -292,6 +292,31 @@ def write_report(spreadsheet, report):
         else:
             worksheet.update([["No data"]], f"A{row}")
             row += 3
+
+    # Opponent × WHS defensive self-scout. ALL INFO SHEET tells us what the
+    # opponent does; WHS DATA tells us how our defense has handled the same
+    # situation + formation historically.
+    if matchup_report is not None:
+        worksheet.update([["OPPONENT × WHS DEFENSIVE SELF-SCOUT"]], f"A{row}")
+        row += 1
+        worksheet.update([[
+            "ALL INFO SHEET = opponent frequency | WHS DATA = our defensive results"
+        ]], f"A{row}")
+        row += 2
+
+        for title, section in [
+            ("HIGH-FREQUENCY MATCHUPS", matchup_report.context),
+            ("DEFENSIVE CALL COMPARISON", matchup_report.calls),
+        ]:
+            worksheet.update([[title]], f"A{row}")
+            row += 1
+            values = dataframe_values(section)
+            if values:
+                worksheet.update(values, f"A{row}")
+                row += len(values) + 2
+            else:
+                worksheet.update([["No comparable sample"]], f"A{row}")
+                row += 3
 
     return worksheet
 
