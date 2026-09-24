@@ -693,7 +693,11 @@ def formation_call_matrix(opponent_df, defense_df, min_call_plays=2, top_n=3):
                     ["SUCCESS %", "PLAYS", "DEF CALL"],
                     ascending=[False, False, True],
                 )
-                call_lookup[key] = ranked.iloc[0]["DEF CALL"]
+                best = ranked.iloc[0]
+                call_lookup[key] = (
+                    f"{best['DEF CALL']} ({best['SUCCESS %']}%, "
+                    f"{int(best['PLAYS'])} plays)"
+                )
 
             # Best call by down/distance alone. This intentionally ignores
             # formation so the final BEST CALL column answers:
