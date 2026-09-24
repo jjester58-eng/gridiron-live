@@ -296,7 +296,7 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
     # Bottom formation/call chart. Formations and run/pass mix come from
     # ALL INFO SHEET; DEF CALL comes from WHS DATA rows where ODK == D.
     if formation_call_report is not None:
-        worksheet.update([["FORMATION × WHS DEFENSIVE CALL — FIELD ZONES"]], f"A{row}")
+        worksheet.update([["FORMATION × WHS DEFENSIVE CALL — SITUATIONS"]], f"A{row}")
         row += 1
         values = dataframe_values(formation_call_report)
         if values:
