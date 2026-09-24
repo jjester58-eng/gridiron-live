@@ -354,40 +354,40 @@ def write_offense_self_scout(spreadsheet, report):
 
     grid = [top_line, []]
 
-    # Keep all three offensive identity tables on the same row block A:I:
-    # left = PLAY / FORMATION / blank / COUNT, middle = TARGET / COUNT / YARDS,
-    # right = BALL CARRIER / COUNT / YARDS.
+    # Arrange the three offensive identity tables as compact blocks:
+    # A:C = passing play/formation counts, D:F = passing targets,
+    # G:I = rushing tendencies.
     grid.append([
-        "PASSING TENDENCIES", "", "", "", "PASSING TENDENCIES", "", "",
-        "RUSHING TENDENCIES", "", ""
+        "PASSING TENDENCIES", "", "",
+        "PASSING TENDENCIES", "", "",
+        "RUSHING TENDENCIES", "", "",
     ])
 
     play_formation_values = dataframe_values(report.passing_play_formation_counts)
     target_summary_values = dataframe_values(report.passing_target_summary)
     rushing_values = dataframe_values(report.rushing_tendencies)
 
-    # Normalize the left table to PLAY / FORMATION / blank / COUNT
-    # so the three blocks line up cleanly across A:I.
-    def normalize_play_formation(rows):
+    def compact_play_formation(rows):
         if not rows:
-            return []
-        output = [["PLAY", "FORMATION", "", "COUNT", ""]]
+            return [["PLAY", "FORMATION", "COUNT"]]
+        output = [["PLAY", "FORMATION", "COUNT"]]
         for row in rows[1:]:
             output.append([
                 row[0] if len(row) > 0 else "",
                 row[1] if len(row) > 1 else "",
-                "",
                 row[3] if len(row) > 3 else (row[2] if len(row) > 2 else ""),
             ])
         return output
 
-    left_values = normalize_play_formation(play_formation_values)
-    middle_values = target_summary_values
-    right_values = rushing_values
+    left_values = compact_play_formation(play_formation_values)
+    middle_values = target_summary_values or [["TARGET", "COUNT", "YARDS"]]
+    right_values = rushing_values or [["BALL CARRIER", "COUNT", "YARDS"]]
 
-    block_height = max(len(left_values), len(middle_values), len(right_values), 1)
-    for i in range(block_height):
-        left = left_values[i] if i < len(left_values) else ["", "", "", "", ""]
+    # Write each table vertically under its own title, keeping the three
+    # blocks in A:C, D:F, and G:I.
+    max_height = max(len(left_values), len(middle_values), len(right_values))
+    for i in range(max_height):
+        left = left_values[i] if i < len(left_values) else ["", "", ""]
         middle = middle_values[i] if i < len(middle_values) else ["", "", ""]
         right = right_values[i] if i < len(right_values) else ["", "", ""]
         grid.append(left + middle + right)
