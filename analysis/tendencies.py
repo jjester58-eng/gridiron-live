@@ -1080,10 +1080,11 @@ def field_zone_efficiency(df, defense_df=None, top_n=3):
     the top opponent formations with WHS defensive calls that historically
     produced the highest success rate in the same zone + situation.
 
-    Defensive success is defined as a snap gaining 5 yards or fewer, an
-    incomplete pass, an interception, or a fumble. The call must have at
-    least
-    three WHS defensive snaps in the matching zone + situation + formation.
+    Defensive success uses down/distance: under 40% of needed yards on
+    1st down, under 60% on 2nd, and short of the line to gain on 3rd/4th.
+    Incompletions and turnovers also count as defensive successes. The call
+    must have at least three WHS defensive snaps in the matching zone +
+    situation + formation.
     This is descriptive historical data, not a future call recommendation.
     """
     situations = [
@@ -1164,18 +1165,39 @@ def field_zone_efficiency(df, defense_df=None, top_n=3):
         defense["DEF CALL CLEAN"] = defense["DEF CALL"].map(clean)
 
         def defensive_success(row):
+            """Count a defensive success using down/distance, not a fixed
+            yardage cutoff.
+
+            1st down: offense gains <40% of the needed yards.
+            2nd down: offense gains <60% of the needed yards.
+            3rd/4th down: offense fails to gain the needed yards.
+            Incompletions and turnovers are also defensive successes.
+            """
             yards = numeric(row.get("GN/LS"))
             if yards is None:
                 yards = result_yards(row.get("RESULT"))
             result = clean(row.get("RESULT")).upper()
-            success = False
-            if yards is not None and yards <= 5:
-                success = True
+
             if any(term in result for term in [
                 "INCOMPLETE", "INTERCEPTION", "INT", "FUMBLE"
             ]):
-                success = True
-            return success
+                return True
+
+            down = numeric(row.get("DN"))
+            dist = numeric(row.get("DIST"))
+            if yards is None or down is None or dist is None:
+                return False
+
+            down = int(down)
+            dist = max(0, dist)
+            if down == 1:
+                threshold = dist * 0.40
+            elif down == 2:
+                threshold = dist * 0.60
+            else:
+                threshold = dist
+
+            return yards < threshold
 
         defense["_SUCCESS"] = defense.apply(defensive_success, axis=1)
         defense = defense[
