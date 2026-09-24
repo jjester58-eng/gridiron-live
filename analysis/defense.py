@@ -382,6 +382,193 @@ def _strength_improvement_indicators(df, min_occurrences=5):
     return pd.DataFrame(rows, columns=columns)
 
 
+
+def _opponent_play_type(row):
+    """Normalize opponent play type for matchup context."""
+    return play_type(row)
+
+
+def _matchup_context(opponent_df, defense_df, min_opponent=3, min_defense=5):
+    """Compare opponent frequency with WHS defensive results.
+
+    ALL INFO SHEET answers "what does the opponent do?" while WHS DATA
+    answers "what has our defense done against the same situation + formation?"
+    This is descriptive only and does not recommend a defensive call.
+    """
+    opponent = opponent_df.copy()
+    defense = defense_df.copy()
+
+    opponent = opponent[opponent["PLAY #"].map(clean) != ""].reset_index(drop=True)
+    defense = defense[defense["PLAY #"].map(clean) != ""].reset_index(drop=True)
+
+    opponent["SITUATION"] = [
+        situation_bucket(d, dist) for d, dist in zip(opponent["DN"], opponent["DIST"])
+    ]
+    defense["SITUATION"] = [
+        situation_bucket(d, dist) for d, dist in zip(defense["DN"], defense["DIST"])
+    ]
+
+    for frame in (opponent, defense):
+        frame["OFF FORM"] = frame["OFF FORM"].map(clean)
+        frame["PERSONNEL"] = frame["PERSONNEL"].map(clean)
+        frame["MOTION"] = frame["MOTION"].map(clean)
+
+    # Primary comparison: down/distance + offensive formation.
+    opponent = opponent[
+        (opponent["SITUATION"] != "") & (opponent["OFF FORM"] != "")
+    ].copy()
+    defense = defense[
+        (defense["SITUATION"] != "") & (defense["OFF FORM"] != "")
+    ].copy()
+
+    context_columns = [
+        "DOWN & DISTANCE", "OFF FORM", "OPP PLAYS", "OPP %",
+        "OPP RUN %", "OPP PASS %", "WHS MATCH PLAYS",
+        "WHS AVG YDS", "WHS EXP %", "WHS TD %",
+    ]
+    call_columns = [
+        "DOWN & DISTANCE", "OFF FORM", "DEF CALL", "PLAYS",
+        "AVG YDS", "EXP %", "TD %", "RELATIVE RESULT",
+    ]
+
+    if opponent.empty or defense.empty:
+        return pd.DataFrame(columns=context_columns), pd.DataFrame(columns=call_columns)
+
+    opponent["_PLAY_TYPE"] = opponent.apply(_opponent_play_type, axis=1)
+    opp_groups = (
+        opponent.groupby(["SITUATION", "OFF FORM"])
+        .agg(
+            **{
+                "OPP PLAYS": ("PLAY #", "size"),
+                "RUN": ("_PLAY_TYPE", lambda s: int((s == "RUN").sum())),
+                "PASS": ("_PLAY_TYPE", lambda s: int((s == "PASS").sum())),
+            }
+        )
+        .reset_index()
+    )
+
+    defense["_YARDS"] = defense.apply(result_yards, axis=1)
+    defense["_EXPLOSIVE"] = defense.apply(is_explosive, axis=1)
+    defense["_TD"] = defense.apply(is_touchdown, axis=1)
+
+    defense_groups = (
+        defense.groupby(["SITUATION", "OFF FORM"])
+        .agg(
+            **{
+                "WHS MATCH PLAYS": ("PLAY #", "size"),
+                "WHS AVG YDS": ("_YARDS", "mean"),
+                "WHS EXP %": ("_EXPLOSIVE", "mean"),
+                "WHS TD %": ("_TD", "mean"),
+            }
+        )
+        .reset_index()
+    )
+
+    context = opp_groups.merge(
+        defense_groups,
+        on=["SITUATION", "OFF FORM"],
+        how="inner",
+    )
+    context = context[
+        (context["OPP PLAYS"] >= min_opponent)
+        & (context["WHS MATCH PLAYS"] >= min_defense)
+    ].copy()
+
+    if context.empty:
+        return pd.DataFrame(columns=context_columns), pd.DataFrame(columns=call_columns)
+
+    opp_total = len(opponent)
+    context["OPP %"] = (context["OPP PLAYS"] / opp_total * 100).round(1)
+    context["OPP RUN %"] = (context["RUN"] / context["OPP PLAYS"] * 100).round(1)
+    context["OPP PASS %"] = (context["PASS"] / context["OPP PLAYS"] * 100).round(1)
+    context["WHS AVG YDS"] = context["WHS AVG YDS"].round(1)
+    context["WHS EXP %"] = (context["WHS EXP %"] * 100).round(1)
+    context["WHS TD %"] = (context["WHS TD %"] * 100).round(1)
+    context = context.rename(columns={"SITUATION": "DOWN & DISTANCE"})[context_columns]
+
+    # Compare the defensive calls used in the matching WHS sample.
+    matched_keys = context.rename(columns={"DOWN & DISTANCE": "SITUATION"})[
+        ["SITUATION", "OFF FORM"]
+    ].drop_duplicates()
+    defense_matched = defense.merge(
+        matched_keys,
+        on=["SITUATION", "OFF FORM"],
+        how="inner",
+    )
+    defense_matched["DEF CALL"] = defense_matched["DEF CALL"].map(clean)
+    defense_matched = defense_matched[defense_matched["DEF CALL"] != ""]
+
+    rows = []
+    for (situation, form, call), group in defense_matched.groupby(
+        ["SITUATION", "OFF FORM", "DEF CALL"]
+    ):
+        # Require a small call sample before labeling relative results.
+        if len(group) < 3:
+            continue
+        yards = pd.to_numeric(group["_YARDS"], errors="coerce")
+        rows.append({
+            "DOWN & DISTANCE": situation,
+            "OFF FORM": form,
+            "DEF CALL": call,
+            "PLAYS": len(group),
+            "AVG YDS": round(yards.mean(), 1) if yards.notna().any() else "",
+            "EXP %": round(group["_EXPLOSIVE"].mean() * 100, 1),
+            "TD %": round(group["_TD"].mean() * 100, 1),
+        })
+
+    calls = pd.DataFrame(rows, columns=call_columns[:-1])
+    if calls.empty:
+        calls["RELATIVE RESULT"] = pd.Series(dtype=str)
+        return context.reset_index(drop=True), calls[call_columns]
+
+    calls["RELATIVE RESULT"] = ""
+    for (situation, form), group in calls.groupby(["DOWN & DISTANCE", "OFF FORM"]):
+        valid = group[pd.to_numeric(group["AVG YDS"], errors="coerce").notna()]
+        if len(valid) < 2:
+            continue
+        min_yards = valid["AVG YDS"].min()
+        max_yards = valid["AVG YDS"].max()
+        calls.loc[valid.index[valid["AVG YDS"] == min_yards], "RELATIVE RESULT"] = "LOWER YDS/PLAY"
+        calls.loc[valid.index[valid["AVG YDS"] == max_yards], "RELATIVE RESULT"] = "HIGHER YDS/PLAY"
+
+    situation_order = {
+        "1st & Long (10+)": 1, "1st & Short (1-9)": 2,
+        "2nd & Long (7+)": 3, "2nd & Medium (4-6)": 4,
+        "2nd & Short (1-3)": 5, "3rd & Long (7+)": 6,
+        "3rd & Medium (4-6)": 7, "3rd & Short (1-3)": 8,
+        "4th Down": 9,
+    }
+    context["_ORDER"] = context["DOWN & DISTANCE"].map(situation_order).fillna(99)
+    context = context.sort_values(
+        ["_ORDER", "OPP PLAYS", "OFF FORM"],
+        ascending=[True, False, True],
+    ).drop(columns="_ORDER").reset_index(drop=True)
+
+    calls["_ORDER"] = calls["DOWN & DISTANCE"].map(situation_order).fillna(99)
+    calls = calls.sort_values(
+        ["_ORDER", "OFF FORM", "AVG YDS", "PLAYS", "DEF CALL"],
+        ascending=[True, True, True, False, True],
+    ).drop(columns="_ORDER").reset_index(drop=True)
+
+    return context, calls[call_columns]
+
+
+@dataclass
+class MatchupReport:
+    context: pd.DataFrame
+    calls: pd.DataFrame
+
+
+def analyze_matchup(opponent_df, defense_df, min_opponent=3, min_defense=5):
+    return MatchupReport(
+        *_matchup_context(
+            opponent_df,
+            defense_df,
+            min_opponent=min_opponent,
+            min_defense=min_defense,
+        )
+    )
+
 @dataclass
 class DefenseReport:
     overall: pd.DataFrame
