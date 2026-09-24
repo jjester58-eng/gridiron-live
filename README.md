@@ -63,7 +63,9 @@ Only groups meeting the minimum sample threshold are surfaced in the strength/im
 
 The defensive module intentionally ignores the fields not used by the current defensive self-scout: **FIB, BACKFIELD, PS ALIGNMENT, WS ALIGNMENT, STUD ALIGNMENT, SCHEME, PLAY DIR, PLAY (STR/WK), PZ HOLLEY, PASS PRO, READ, AWAY**.
 
-The defensive tab/report wiring will be added later, after the current opponent report is finished.
+The **Tendencies** tab now also appends an **OPPONENT × WHS DEFENSIVE SELF-SCOUT** section. It compares the opponent's ALL INFO SHEET frequency with matching WHS DATA defensive history by down/distance + offensive formation, then shows the defensive calls used in those matching situations with yards/play, explosive rate, and TD rate. Call labels are relative historical results only; the engine does not recommend a future call.
+
+The separate **DEF SELF SCOUT** tab remains available for the full WHS defensive self-scout.
 
 ## Required Google Sheet columns
 
