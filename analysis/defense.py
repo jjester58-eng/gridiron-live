@@ -576,7 +576,7 @@ def _matchup_context(opponent_df, defense_df, min_opponent=3, min_defense=5):
 
 
 
-def formation_call_matrix(opponent_df, defense_df, min_call_plays=3, top_n=3):
+def formation_call_matrix(opponent_df, defense_df, min_call_plays=2, top_n=3):
     """Build the bottom Tendencies formation/call matrix.
 
     Opponent formations and run/pass mix come from ALL INFO SHEET.
@@ -629,13 +629,23 @@ def formation_call_matrix(opponent_df, defense_df, min_call_plays=3, top_n=3):
     call_lookup = {}
     if defense_df is not None and not defense_df.empty:
         d = defense_df.copy()
-        d = d[d["ODK"].map(clean).str.upper() == "D"].copy()
+        # load_defense_source_df already filters WHS DATA to ODK=D, but
+        # retain this guard so the function is safe when called directly.
+        if "ODK" in d.columns:
+            d = d[d["ODK"].map(clean).str.upper() == "D"].copy()
         d["FIELD ZONE"] = d["YARD LN"].map(_field_zone)
         d["SITUATION"] = [
             situation_bucket(x, y) for x, y in zip(d["DN"], d["DIST"])
         ]
         d["FORMATION"] = d["OFF FORM"].map(clean)
         d["DEF CALL"] = d["DEF CALL"].map(clean)
+
+        def formation_key(value):
+            # Make formation matching tolerant of capitalization, punctuation,
+            # and labels such as TRIPS RIGHT vs TRIPS.
+            return re.sub(r"[^A-Z0-9]", "", clean(value).upper())
+
+        d["_FORMATION_KEY"] = d["FORMATION"].map(formation_key)
 
         def success(row):
             """Measure defensive success relative to the down/distance."""
@@ -677,7 +687,7 @@ def formation_call_matrix(opponent_df, defense_df, min_call_plays=3, top_n=3):
 
         if not d.empty:
             stats = d.groupby(
-                ["FIELD ZONE", "SITUATION", "FORMATION", "DEF CALL"]
+                ["FIELD ZONE", "SITUATION", "_FORMATION_KEY", "DEF CALL"]
             ).agg(
                 PLAYS=("_SUCCESS", "size"),
                 SUCCESS=("_SUCCESS", "sum"),
@@ -685,7 +695,7 @@ def formation_call_matrix(opponent_df, defense_df, min_call_plays=3, top_n=3):
             stats["SUCCESS %"] = (stats["SUCCESS"] / stats["PLAYS"] * 100).round(1)
             stats = stats[stats["PLAYS"] >= min_call_plays]
 
-            for key, group in stats.groupby(["FIELD ZONE", "SITUATION", "FORMATION"]):
+            for key, group in stats.groupby(["FIELD ZONE", "SITUATION", "_FORMATION_KEY"]):
                 ranked = group.sort_values(
                     ["SUCCESS %", "PLAYS", "DEF CALL"],
                     ascending=[False, False, True],
@@ -706,7 +716,23 @@ def formation_call_matrix(opponent_df, defense_df, min_call_plays=3, top_n=3):
 
             cells = []
             for form in forms["FORMATION"].tolist():
-                cells.extend([form, call_lookup.get((zone, situation, form), "")])
+                form_key = re.sub(r"[^A-Z0-9]", "", clean(form).upper())
+                call = call_lookup.get((zone, situation, form_key), "")
+
+                # If the exact normalized formation is not present in WHS DATA,
+                # allow a clear label variant such as TRIPS RIGHT/TRIPS or
+                # BUNCH LEFT/BUNCH to use the same historical formation family.
+                if not call and form_key:
+                    candidates = [
+                        (k, v) for k, v in call_lookup.items()
+                        if k[0] == zone and k[1] == situation
+                        and (k[2] in form_key or form_key in k[2])
+                    ]
+                    if candidates:
+                        candidates.sort(key=lambda item: (len(item[0][2]), item[1]))
+                        call = candidates[0][1]
+
+                cells.extend([form, call])
             cells += [""] * (top_n * 2 - len(cells))
 
             rows.append([
