@@ -203,7 +203,7 @@ def _summarize_like_terms(df):
     ).reset_index(drop=True)
 
 
-def write_report(spreadsheet, report, matchup_report=None):
+def write_report(spreadsheet, report, matchup_report=None, formation_call_report=None):
     existing = {w.title for w in spreadsheet.worksheets()}
 
     worksheet = (
@@ -291,6 +291,19 @@ def write_report(spreadsheet, report, matchup_report=None):
             row += len(values) + 2
         else:
             worksheet.update([["No data"]], f"A{row}")
+            row += 3
+
+    # Bottom formation/call chart. Formations and run/pass mix come from
+    # ALL INFO SHEET; DEF CALL comes from WHS DATA rows where ODK == D.
+    if formation_call_report is not None:
+        worksheet.update([["FORMATION × WHS DEFENSIVE CALL — FIELD ZONES"]], f"A{row}")
+        row += 1
+        values = dataframe_values(formation_call_report)
+        if values:
+            worksheet.update(values, f"A{row}")
+            row += len(values) + 2
+        else:
+            worksheet.update([["No matching WHS defensive data"]], f"A{row}")
             row += 3
 
     # Opponent × WHS defensive self-scout. ALL INFO SHEET tells us what the
