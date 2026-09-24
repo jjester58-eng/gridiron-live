@@ -1075,7 +1075,7 @@ def normalize_favorite_play(value):
     text = clean(value)
     return re.sub(r"\s+(?:L|R)$", "", text, flags=re.IGNORECASE).strip()
 
-def field_zone_efficiency(df, defense_df=None, top_n=3):
+def field_zone_efficiency_original(df, defense_df=None, top_n=3):
     """Show opponent run/pass mix by field zone + down/distance and pair
     the top opponent formations with WHS defensive calls that historically
     produced the highest success rate in the same zone + situation.
@@ -1282,6 +1282,14 @@ def field_zone_efficiency(df, defense_df=None, top_n=3):
         .drop(columns=["_ZONE_ORDER", "_SITUATION_ORDER"])
         .reset_index(drop=True)
     )
+
+def field_zone_efficiency(df, top_n=3):
+    """Existing field-zone efficiency table: opponent run/pass mix plus
+    top formations. Defensive calls are intentionally handled in a separate
+    bottom-of-report chart from WHS DATA where ODK == D."""
+    return field_zone_efficiency_original(df, top_n=top_n)
+
+
 
 def field_zone_by_hash(df, top_n=3):
     """Measure play volume/production within each field zone + hash."""
