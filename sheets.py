@@ -279,7 +279,6 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
         ("LEFT / RIGHT PATTERNS", report.left_right_sequences),
         ("HASH + DOWN/DISTANCE PLAY PROBABILITIES", report.hash_down_distance_play_probabilities),
         ("REPEATED PLAY SEQUENCES", report.repeated_sequences),
-        ("HIGH-FREQUENCY — SITUATIONS + YARDS", report.frequency_by_situation),
     ]
     for title, section in sections:
         worksheet.update([[title]], f"A{row}")
@@ -291,6 +290,110 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
             row += len(values) + 2
         else:
             worksheet.update([["No data"]], f"A{row}")
+            row += 3
+
+    # Match opponent tendencies directly to WHS defensive history.
+    # This replaces the old HIGH-FREQUENCY — SITUATIONS + YARDS table.
+    if matchup_report is not None:
+        context = matchup_report.context.copy()
+        calls = matchup_report.calls.copy()
+
+        worksheet.update([["MATCHED TO WHS DEFENSE"]], f"A{row}")
+        row += 1
+        worksheet.update([[
+            "Opponent tendency → WHS historical response. "
+            "Top situations are ranked by opponent frequency; field zones are intentionally excluded."
+        ]], f"A{row}")
+        row += 2
+
+        if not context.empty:
+            context["_OPP_PLAYS"] = pd.to_numeric(context["OPP PLAYS"], errors="coerce").fillna(0)
+            context["_WHS_PLAYS"] = pd.to_numeric(context["WHS MATCH PLAYS"], errors="coerce").fillna(0)
+            context = (
+                context.sort_values(
+                    ["_OPP_PLAYS", "_WHS_PLAYS"],
+                    ascending=[False, False],
+                )
+                .head(10)
+                .drop(columns=["_OPP_PLAYS", "_WHS_PLAYS"])
+                .reset_index(drop=True)
+            )
+
+            def matchup_read(item):
+                run_pct = float(item["OPP RUN %"])
+                pass_pct = float(item["OPP PASS %"])
+                avg = pd.to_numeric(pd.Series([item["WHS AVG YDS"]]), errors="coerce").iloc[0]
+                if pd.isna(avg):
+                    return "CONTESTED"
+                if run_pct >= 60:
+                    return "WHS STRENGTH vs RUN" if avg <= 4.0 else "WHS WEAKNESS vs RUN"
+                if pass_pct >= 60:
+                    return "WHS STRENGTH vs PASS" if avg <= 6.0 else "WHS WEAKNESS vs PASS"
+                return "CONTESTED"
+
+            context["MATCHUP READ"] = context.apply(matchup_read, axis=1)
+
+            context_values = dataframe_values(context)
+            worksheet.update(context_values, f"A{row}")
+            row += len(context_values) + 2
+
+            keys = set(zip(context["DOWN & DISTANCE"], context["OFF FORM"]))
+            if not calls.empty:
+                calls = calls[
+                    calls.apply(
+                        lambda r: (r["DOWN & DISTANCE"], r["OFF FORM"]) in keys,
+                        axis=1,
+                    )
+                ].copy()
+
+                if not calls.empty:
+                    worksheet.update([["WHS HISTORICAL CALL EFFECTIVENESS — MATCHED SITUATIONS"]], f"A{row}")
+                    row += 1
+                    worksheet.update(dataframe_values(calls), f"A{row}")
+                    row += len(calls) + 2
+
+            dc_rows = []
+            for _, item in context.iterrows():
+                situation = item["DOWN & DISTANCE"]
+                form = item["OFF FORM"]
+                matched_calls = calls[
+                    (calls["DOWN & DISTANCE"] == situation)
+                    & (calls["OFF FORM"] == form)
+                ] if not calls.empty else pd.DataFrame()
+
+                if not matched_calls.empty:
+                    ranked = matched_calls.copy()
+                    ranked["_AVG"] = pd.to_numeric(ranked["AVG YDS"], errors="coerce")
+                    ranked = ranked.dropna(subset=["_AVG"]).sort_values(
+                        ["_AVG", "PLAYS"], ascending=[True, False]
+                    )
+                    if not ranked.empty:
+                        best = ranked.iloc[0]
+                        recommendation = (
+                            f"Lean on {best['DEF CALL']} — {best['AVG YDS']} YDS/PLAY "
+                            f"({best['PLAYS']} snaps)."
+                        )
+                    else:
+                        recommendation = "Use the historical call results above; no reliable yardage edge."
+                else:
+                    recommendation = "No matched WHS call sample large enough for a call-specific edge."
+
+                dc_rows.append({
+                    "SITUATION": situation,
+                    "OPP FORMATION": form,
+                    "OPP RUN/PASS": f"{item['OPP RUN %']}% / {item['OPP PASS %']}%",
+                    "IF I'M THE WHS DC": recommendation,
+                    "MATCHUP READ": item["MATCHUP READ"],
+                })
+
+            if dc_rows:
+                worksheet.update([["IF I'M THE WHS DC FRIDAY NIGHT"]], f"A{row}")
+                row += 1
+                dc_df = pd.DataFrame(dc_rows)
+                worksheet.update(dataframe_values(dc_df), f"A{row}")
+                row += len(dc_df) + 2
+        else:
+            worksheet.update([["No matched WHS defensive history for the opponent data."]], f"A{row}")
             row += 3
 
     # Bottom formation/call chart. Formations and run/pass mix come from
