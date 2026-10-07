@@ -369,20 +369,25 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
                     )
                     if not ranked.empty:
                         best = ranked.iloc[0]
-                        recommendation = (
-                            f"Lean on {best['DEF CALL']} — {best['AVG YDS']} YDS/PLAY "
-                            f"({best['PLAYS']} snaps)."
-                        )
+                        option_1 = f"{best['DEF CALL']} — {best['AVG YDS']} YDS/PLAY ({best['PLAYS']} snaps)"
+                        if len(ranked) > 1:
+                            second = ranked.iloc[1]
+                            option_2 = f"{second['DEF CALL']} — {second['AVG YDS']} YDS/PLAY ({second['PLAYS']} snaps)"
+                        else:
+                            option_2 = "No second call with enough matched history."
                     else:
-                        recommendation = "Use the historical call results above; no reliable yardage edge."
+                        option_1 = "No reliable historical call edge."
+                        option_2 = "Use the matched call results above."
                 else:
-                    recommendation = "No matched WHS call sample large enough for a call-specific edge."
+                    option_1 = "No matched WHS call sample large enough."
+                    option_2 = "No matched WHS call sample large enough."
 
                 dc_rows.append({
                     "SITUATION": situation,
                     "OPP FORMATION": form,
                     "OPP RUN/PASS": f"{item['OPP RUN %']}% / {item['OPP PASS %']}%",
-                    "IF I'M THE WHS DC": recommendation,
+                    "BEST CALL #1": option_1,
+                    "BEST CALL #2": option_2,
                     "MATCHUP READ": item["MATCHUP READ"],
                 })
 
