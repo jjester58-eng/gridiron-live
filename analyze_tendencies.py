@@ -12,7 +12,7 @@ from sheets import (
     write_defense_sheet,
     write_offense_self_scout,
 )
-from analysis.tendencies import analyze
+from analysis.tendencies import analyze, possession_start_first_snap
 from analysis.defense import analyze_defense, formation_call_matrix, analyze_matchup
 
 
@@ -38,11 +38,16 @@ def main():
     # Keep the compact formation/call matrix for the existing secondary chart.
     formation_call_report = formation_call_matrix(df, defense_df)
 
+    # Identify the first snap of each new series by PLAY # breaks.
+    # Example: 51, 52, 53, 60 => 60 is a new series start.
+    possession_start_report = possession_start_first_snap(df)
+
     write_report(
         spreadsheet,
         report,
         matchup_report=matchup_report,
         formation_call_report=formation_call_report,
+        possession_start_report=possession_start_report,
     )
     defense_report = analyze_defense(defense_df)
     write_defense_sheet(spreadsheet, defense_report)
