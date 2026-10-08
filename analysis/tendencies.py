@@ -1307,6 +1307,51 @@ def field_zone_by_hash(df, top_n=3):
         .reset_index(drop=True)
     )
 
+def possession_start_first_snap(df):
+    """Identify the first offensive snap of each series from PLAY # breaks.
+
+    A new series starts whenever the numeric PLAY # is not exactly one more
+    than the previous snap. Example: 51, 52, 53, 60 means 60 is the first
+    snap of a new series and therefore counts as one possession-start play.
+    The table records the first snap only and classifies it as RUN or PASS.
+    """
+    columns = [
+        "SERIES START", "PLAY #", "DOWN", "DIST", "RUN / PASS",
+        "OFF FORM", "OFF PLAY", "RESULT",
+    ]
+    if df is None or df.empty:
+        return pd.DataFrame(columns=columns)
+
+    work = df.copy().reset_index(drop=True)
+    work["_PLAY_NUM"] = work["PLAY #"].map(numeric)
+    rows = []
+    previous_play = None
+
+    for _, row in work.iterrows():
+        play_num = numeric(row.get("PLAY #"))
+        if play_num is None:
+            continue
+
+        is_new_series = previous_play is None or play_num != previous_play + 1
+        if is_new_series:
+            play_type = sequence_play_type(row)
+            if play_type in {"RUN", "PASS"}:
+                rows.append({
+                    "SERIES START": "YES",
+                    "PLAY #": int(play_num) if float(play_num).is_integer() else play_num,
+                    "DOWN": clean(row.get("DN")),
+                    "DIST": clean(row.get("DIST")),
+                    "RUN / PASS": play_type,
+                    "OFF FORM": clean(row.get("OFF FORM")),
+                    "OFF PLAY": clean(row.get("OFF PLAY")),
+                    "RESULT": clean(row.get("RESULT")),
+                })
+
+        previous_play = play_num
+
+    return pd.DataFrame(rows, columns=columns).reset_index(drop=True)
+
+
 def down_efficiency(df):
     """Measure first-down conversion efficiency on every down."""
     rows = []
