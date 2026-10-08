@@ -203,7 +203,7 @@ def _summarize_like_terms(df):
     ).reset_index(drop=True)
 
 
-def write_report(spreadsheet, report, matchup_report=None, formation_call_report=None):
+def write_report(spreadsheet, report, matchup_report=None, formation_call_report=None, possession_start_report=None):
     existing = {w.title for w in spreadsheet.worksheets()}
 
     worksheet = (
@@ -250,6 +250,23 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
             row += len(values) + 2
         else:
             worksheet.update([["No data"]], f"A{row}")
+            row += 3
+
+    # First snap of each new offensive series. A series starts when PLAY #
+    # breaks (e.g. 51, 52, 53, 60 => 60 is a new series start).
+    if possession_start_report is not None:
+        worksheet.update([["POSSESSION START — 1ST SNAP RUN / PASS"]], f"A{row}")
+        row += 1
+        worksheet.update([[
+            "New series = PLAY # break. Counts the first snap only; Run/Pass is classified from the play data."
+        ]], f"A{row}")
+        row += 1
+        values = dataframe_values(possession_start_report)
+        if values:
+            worksheet.update(values, f"A{row}")
+            row += len(values) + 2
+        else:
+            worksheet.update([["No qualifying series starts"]], f"A{row}")
             row += 3
 
     worksheet.update([["PASSING TENDENCIES"]], f"A{row}")
