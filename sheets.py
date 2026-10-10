@@ -615,18 +615,18 @@ def write_defense_sheet(spreadsheet, report):
         },
         {
             "RESULT CATEGORY": "Incomplete passes",
-            "COUNT": _count_result(result_details, r"\\bINCOMPLETE\\b"),
-            "% OF DEFENSIVE SNAPS": round(_count_result(result_details, r"\\bINCOMPLETE\\b") / total_plays * 100, 1) if total_plays else 0,
+            "COUNT": _count_result(result_details, r"\bINCOMPLETE\b"),
+            "% OF DEFENSIVE SNAPS": round(_count_result(result_details, r"\bINCOMPLETE\b") / total_plays * 100, 1) if total_plays else 0,
         },
         {
             "RESULT CATEGORY": "Interceptions",
-            "COUNT": _count_result(result_details, r"\\b(INTERCEPTION|INTERCEPTED|INT)\\b"),
-            "% OF DEFENSIVE SNAPS": round(_count_result(result_details, r"\\b(INTERCEPTION|INTERCEPTED|INT)\\b") / total_plays * 100, 1) if total_plays else 0,
+            "COUNT": _count_result(result_details, r"\b(INTERCEPTION|INTERCEPTED|INT)\b"),
+            "% OF DEFENSIVE SNAPS": round(_count_result(result_details, r"\b(INTERCEPTION|INTERCEPTED|INT)\b") / total_plays * 100, 1) if total_plays else 0,
         },
         {
             "RESULT CATEGORY": "Fumbles",
-            "COUNT": _count_result(result_details, r"\\b(FUMBLE|FUMBLED)\\b"),
-            "% OF DEFENSIVE SNAPS": round(_count_result(result_details, r"\\b(FUMBLE|FUMBLED)\\b") / total_plays * 100, 1) if total_plays else 0,
+            "COUNT": _count_result(result_details, r"\b(FUMBLE|FUMBLED)\b"),
+            "% OF DEFENSIVE SNAPS": round(_count_result(result_details, r"\b(FUMBLE|FUMBLED)\b") / total_plays * 100, 1) if total_plays else 0,
         },
     ])
 
