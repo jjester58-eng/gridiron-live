@@ -549,6 +549,31 @@ def write_offense_self_scout(spreadsheet, report):
 
     if last_error:
         raise last_error
+
+    # Keep the long play-level list available without crowding the season overview.
+    details_name = "DEF RESULT DETAILS"
+    existing_names = {w.title for w in spreadsheet.worksheets()}
+    details_ws = (
+        spreadsheet.worksheet(details_name)
+        if details_name in existing_names
+        else spreadsheet.add_worksheet(title=details_name, rows=1000, cols=20)
+    )
+    details_grid = [
+        ["DEFENSIVE RESULT DETAILS — QUALIFYING PLAYS"],
+        ["Includes plays held to 5 yards or less, incompletions, interceptions, and fumbles."],
+    ]
+    detail_values = dataframe_values(result_details)
+    if detail_values:
+        details_grid.extend(detail_values)
+    else:
+        details_grid.append(["No qualifying plays"])
+    details_width = max(len(row) for row in details_grid)
+    details_width = max(details_width, details_ws.col_count)
+    details_rows = max(len(details_grid), details_ws.row_count)
+    details_grid = [row + [""] * (details_width - len(row)) for row in details_grid]
+    details_grid.extend([[""] * details_width for _ in range(details_rows - len(details_grid))])
+    details_ws.update(details_grid, "A1", raw=True)
+
     return worksheet
 
 def write_defense_sheet(spreadsheet, report):
@@ -586,6 +611,49 @@ def write_defense_sheet(spreadsheet, report):
         f"INCOMPLETIONS: {overall.get('INCOMPLETIONS', 0)}",
     ]
 
+    # Season summary replaces the long play-by-play list on the main report.
+    # Keep the underlying qualifying plays on a separate detail worksheet.
+    result_details = report.result_stops.copy()
+    total_plays = int(overall.get("PLAYS", 0) or 0)
+
+    def _count_yards_5_or_less(frame):
+        if frame.empty or "GN/LS" not in frame.columns:
+            return 0
+        yards = pd.to_numeric(frame["GN/LS"], errors="coerce")
+        return int((yards.notna() & (yards <= 5)).sum())
+
+    def _count_result(frame, pattern):
+        if frame.empty:
+            return 0
+        columns = [c for c in ("PLAY TYPE", "RESULT", "OFF PLAY", "COMMENTS") if c in frame.columns]
+        if not columns:
+            return 0
+        combined = frame[columns].fillna("").astype(str).agg(" ".join, axis=1).str.upper()
+        return int(combined.str.contains(pattern, regex=True).sum())
+
+    result_summary = pd.DataFrame([
+        {
+            "RESULT CATEGORY": "Plays held to 5 yards or less",
+            "COUNT": _count_yards_5_or_less(result_details),
+            "% OF DEFENSIVE SNAPS": round(_count_yards_5_or_less(result_details) / total_plays * 100, 1) if total_plays else 0,
+        },
+        {
+            "RESULT CATEGORY": "Incomplete passes",
+            "COUNT": _count_result(result_details, r"\\bINCOMPLETE\\b"),
+            "% OF DEFENSIVE SNAPS": round(_count_result(result_details, r"\\bINCOMPLETE\\b") / total_plays * 100, 1) if total_plays else 0,
+        },
+        {
+            "RESULT CATEGORY": "Interceptions",
+            "COUNT": _count_result(result_details, r"\\b(INTERCEPTION|INTERCEPTED|INT)\\b"),
+            "% OF DEFENSIVE SNAPS": round(_count_result(result_details, r"\\b(INTERCEPTION|INTERCEPTED|INT)\\b") / total_plays * 100, 1) if total_plays else 0,
+        },
+        {
+            "RESULT CATEGORY": "Fumbles",
+            "COUNT": _count_result(result_details, r"\\b(FUMBLE|FUMBLED)\\b"),
+            "% OF DEFENSIVE SNAPS": round(_count_result(result_details, r"\\b(FUMBLE|FUMBLED)\\b") / total_plays * 100, 1) if total_plays else 0,
+        },
+    ])
+
     sections = [
         ("DEFENSIVE CALL → RESULT", report.by_def_call),
         ("SITUATION → DEFENSIVE CALL", report.situation_calls),
@@ -593,7 +661,7 @@ def write_defense_sheet(spreadsheet, report):
         ("OFFENSIVE FORMATION → RESULT", report.by_off_form),
         ("RUN / PASS → RESULT", report.by_play_type),
         ("EXPLOSIVE PLAYS", report.explosive_context),
-        ("RESULTS — 5 YARDS OR LESS / INCOMPLETE / INTERCEPTION / FUMBLE", report.result_stops),
+        ("DEFENSIVE RESULTS — SEASON SUMMARY", result_summary),
         ("MEASURABLE STRENGTHS / IMPROVEMENT INDICATORS", report.indicators),
     ]
 
