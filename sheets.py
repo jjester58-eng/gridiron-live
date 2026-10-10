@@ -662,13 +662,40 @@ def write_defense_sheet(spreadsheet, report):
             "STATUS", "CATEGORY", "GROUP", "PLAYS", "METRIC", "VALUE", "OVERALL", "DIRECTION"
         ])
 
+    # Replace the long explosive play list on the main report with a compact
+    # season summary. Keep every explosive snap on DEF EXPLOSIVE DETAILS.
+    explosive_details = report.explosive_context.copy()
+    explosive_count = len(explosive_details)
+    explosive_summary_rows = [{
+        "MEASURE": "Total explosive plays",
+        "COUNT": explosive_count,
+        "% OF DEFENSIVE SNAPS": round(explosive_count / total_plays * 100, 1) if total_plays else 0,
+    }]
+    if not explosive_details.empty and "DOWN & DISTANCE" in explosive_details.columns:
+        by_situation = (
+            explosive_details["DOWN & DISTANCE"].fillna("").astype(str)
+            .replace("", "Unknown situation").value_counts()
+            .rename_axis("SITUATION").reset_index(name="COUNT")
+        )
+        by_situation["% OF EXPLOSIVES"] = (
+            by_situation["COUNT"] / explosive_count * 100
+        ).round(1)
+        by_situation = by_situation.head(5)
+        for _, item in by_situation.iterrows():
+            explosive_summary_rows.append({
+                "MEASURE": f"By situation: {item['SITUATION']}",
+                "COUNT": int(item["COUNT"]),
+                "% OF DEFENSIVE SNAPS": f"{item['% OF EXPLOSIVES']}% of explosives",
+            })
+    explosive_summary = pd.DataFrame(explosive_summary_rows)
+
     sections = [
         ("DEFENSIVE CALL → RESULT", report.by_def_call),
         ("SITUATION → DEFENSIVE CALL", report.situation_calls),
         ("SITUATION → CALL → RESULT", report.call_by_situation),
         ("OFFENSIVE FORMATION → RESULT", report.by_off_form),
         ("RUN / PASS → RESULT", report.by_play_type),
-        ("EXPLOSIVE PLAYS", report.explosive_context),
+        ("EXPLOSIVE PLAYS — SEASON SUMMARY", explosive_summary),
         ("DEFENSIVE RESULTS — SEASON SUMMARY", result_summary),
         ("DEFENSIVE STRENGTHS & AREAS TO IMPROVE", strength_summary),
     ]
@@ -702,7 +729,7 @@ def write_defense_sheet(spreadsheet, report):
     for attempt in range(5):
         try:
             worksheet.update(grid, "A1", raw=True)
-            return worksheet
+            break
         except gspread.exceptions.APIError as exc:
             last_error = exc
             if "429" not in str(exc):
@@ -736,6 +763,30 @@ def write_defense_sheet(spreadsheet, report):
     strength_grid = [row + [""] * (strength_width - len(row)) for row in strength_grid]
     strength_grid.extend([[""] * strength_width for _ in range(strength_rows - len(strength_grid))])
     strength_ws.update(strength_grid, "A1", raw=True)
+
+    # Keep the complete explosive play list on its own worksheet.
+    explosive_name = "DEF EXPLOSIVE DETAILS"
+    existing_names = {w.title for w in spreadsheet.worksheets()}
+    explosive_ws = (
+        spreadsheet.worksheet(explosive_name)
+        if explosive_name in existing_names
+        else spreadsheet.add_worksheet(title=explosive_name, rows=1000, cols=20)
+    )
+    explosive_grid = [
+        ["EXPLOSIVE PLAY DETAILS"],
+        ["All qualifying explosive defensive snaps (run threshold 15+ yards; pass threshold 20+ yards)."],
+    ]
+    explosive_values = dataframe_values(explosive_details)
+    if explosive_values:
+        explosive_grid.extend(explosive_values)
+    else:
+        explosive_grid.append(["No explosive plays"])
+    explosive_width = max(len(row) for row in explosive_grid)
+    explosive_width = max(explosive_width, explosive_ws.col_count)
+    explosive_rows = max(len(explosive_grid), explosive_ws.row_count)
+    explosive_grid = [row + [""] * (explosive_width - len(row)) for row in explosive_grid]
+    explosive_grid.extend([[""] * explosive_width for _ in range(explosive_rows - len(explosive_grid))])
+    explosive_ws.update(explosive_grid, "A1", raw=True)
 
     # Keep the long play-level list available without crowding the season overview.
     details_name = "DEF RESULT DETAILS"
