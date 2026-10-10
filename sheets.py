@@ -538,7 +538,7 @@ def write_offense_self_scout(spreadsheet, report):
     for attempt in range(5):
         try:
             worksheet.update(grid, "A1", raw=True)
-            return worksheet
+            break
         except gspread.exceptions.APIError as exc:
             last_error = exc
             if "429" not in str(exc):
@@ -630,6 +630,38 @@ def write_defense_sheet(spreadsheet, report):
         },
     ])
 
+    # Condense the season-long indicators into a short coaching summary.
+    # Preserve the full indicator table on a separate detail worksheet.
+    strength_details = report.indicators.copy()
+    if not strength_details.empty:
+        lower_is_better = strength_details["METRIC"].isin(
+            ["AVG YDS", "EXPLOSIVE %", "TD %"]
+        )
+        strength_details["_DELTA"] = (
+            pd.to_numeric(strength_details["VALUE"], errors="coerce")
+            - pd.to_numeric(strength_details["OVERALL"], errors="coerce")
+        )
+        is_positive = (
+            (lower_is_better & strength_details["DIRECTION"].eq("LOWER THAN OVERALL"))
+            | (~lower_is_better & strength_details["DIRECTION"].eq("HIGHER THAN OVERALL"))
+        )
+        strength_details["_PRIORITY"] = strength_details["_DELTA"].abs()
+        strength_summary = pd.concat([
+            strength_details[is_positive].sort_values(
+                ["_PRIORITY", "PLAYS"], ascending=[False, False]
+            ).head(5).assign(**{"STATUS": "STRENGTH"}),
+            strength_details[~is_positive].sort_values(
+                ["_PRIORITY", "PLAYS"], ascending=[False, False]
+            ).head(5).assign(**{"STATUS": "AREA TO IMPROVE"}),
+        ], ignore_index=True)
+        strength_summary = strength_summary[
+            ["STATUS", "CATEGORY", "GROUP", "PLAYS", "METRIC", "VALUE", "OVERALL", "DIRECTION"]
+        ]
+    else:
+        strength_summary = pd.DataFrame(columns=[
+            "STATUS", "CATEGORY", "GROUP", "PLAYS", "METRIC", "VALUE", "OVERALL", "DIRECTION"
+        ])
+
     sections = [
         ("DEFENSIVE CALL → RESULT", report.by_def_call),
         ("SITUATION → DEFENSIVE CALL", report.situation_calls),
@@ -638,7 +670,7 @@ def write_defense_sheet(spreadsheet, report):
         ("RUN / PASS → RESULT", report.by_play_type),
         ("EXPLOSIVE PLAYS", report.explosive_context),
         ("DEFENSIVE RESULTS — SEASON SUMMARY", result_summary),
-        ("MEASURABLE STRENGTHS / IMPROVEMENT INDICATORS", report.indicators),
+        ("DEFENSIVE STRENGTHS & AREAS TO IMPROVE", strength_summary),
     ]
 
     # Assemble the whole sheet as a single rectangular grid.
@@ -681,6 +713,30 @@ def write_defense_sheet(spreadsheet, report):
 
     if last_error:
         raise last_error
+    # Keep the full season-wide indicator breakdown on its own worksheet.
+    strength_name = "DEF STRENGTH DETAILS"
+    existing_names = {w.title for w in spreadsheet.worksheets()}
+    strength_ws = (
+        spreadsheet.worksheet(strength_name)
+        if strength_name in existing_names
+        else spreadsheet.add_worksheet(title=strength_name, rows=1000, cols=20)
+    )
+    strength_grid = [
+        ["DEFENSIVE STRENGTH & IMPROVEMENT DETAILS"],
+        ["Full comparison against overall season averages; groups require the existing minimum play sample."],
+    ]
+    strength_values = dataframe_values(strength_details.drop(columns=["_DELTA", "_PRIORITY"], errors="ignore"))
+    if strength_values:
+        strength_grid.extend(strength_values)
+    else:
+        strength_grid.append(["No qualifying indicators"])
+    strength_width = max(len(row) for row in strength_grid)
+    strength_width = max(strength_width, strength_ws.col_count)
+    strength_rows = max(len(strength_grid), strength_ws.row_count)
+    strength_grid = [row + [""] * (strength_width - len(row)) for row in strength_grid]
+    strength_grid.extend([[""] * strength_width for _ in range(strength_rows - len(strength_grid))])
+    strength_ws.update(strength_grid, "A1", raw=True)
+
     # Keep the long play-level list available without crowding the season overview.
     details_name = "DEF RESULT DETAILS"
     existing_names = {w.title for w in spreadsheet.worksheets()}
