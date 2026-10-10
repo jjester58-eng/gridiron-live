@@ -550,30 +550,6 @@ def write_offense_self_scout(spreadsheet, report):
     if last_error:
         raise last_error
 
-    # Keep the long play-level list available without crowding the season overview.
-    details_name = "DEF RESULT DETAILS"
-    existing_names = {w.title for w in spreadsheet.worksheets()}
-    details_ws = (
-        spreadsheet.worksheet(details_name)
-        if details_name in existing_names
-        else spreadsheet.add_worksheet(title=details_name, rows=1000, cols=20)
-    )
-    details_grid = [
-        ["DEFENSIVE RESULT DETAILS — QUALIFYING PLAYS"],
-        ["Includes plays held to 5 yards or less, incompletions, interceptions, and fumbles."],
-    ]
-    detail_values = dataframe_values(result_details)
-    if detail_values:
-        details_grid.extend(detail_values)
-    else:
-        details_grid.append(["No qualifying plays"])
-    details_width = max(len(row) for row in details_grid)
-    details_width = max(details_width, details_ws.col_count)
-    details_rows = max(len(details_grid), details_ws.row_count)
-    details_grid = [row + [""] * (details_width - len(row)) for row in details_grid]
-    details_grid.extend([[""] * details_width for _ in range(details_rows - len(details_grid))])
-    details_ws.update(details_grid, "A1", raw=True)
-
     return worksheet
 
 def write_defense_sheet(spreadsheet, report):
@@ -705,4 +681,28 @@ def write_defense_sheet(spreadsheet, report):
 
     if last_error:
         raise last_error
+    # Keep the long play-level list available without crowding the season overview.
+    details_name = "DEF RESULT DETAILS"
+    existing_names = {w.title for w in spreadsheet.worksheets()}
+    details_ws = (
+        spreadsheet.worksheet(details_name)
+        if details_name in existing_names
+        else spreadsheet.add_worksheet(title=details_name, rows=1000, cols=20)
+    )
+    details_grid = [
+        ["DEFENSIVE RESULT DETAILS — QUALIFYING PLAYS"],
+        ["Includes plays held to 5 yards or less, incompletions, interceptions, and fumbles."],
+    ]
+    detail_values = dataframe_values(result_details)
+    if detail_values:
+        details_grid.extend(detail_values)
+    else:
+        details_grid.append(["No qualifying plays"])
+    details_width = max(len(row) for row in details_grid)
+    details_width = max(details_width, details_ws.col_count)
+    details_rows = max(len(details_grid), details_ws.row_count)
+    details_grid = [row + [""] * (details_width - len(row)) for row in details_grid]
+    details_grid.extend([[""] * details_width for _ in range(details_rows - len(details_grid))])
+    details_ws.update(details_grid, "A1", raw=True)
+
     return worksheet
