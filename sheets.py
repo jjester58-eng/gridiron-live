@@ -226,6 +226,7 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
         f"PASS ATT / COMP: {summary['PASS ATT']} / {summary['PASS COMP']}",
         f"PASS YDS: {summary['PASS YDS']}",
         f"SACK: {summary['SACK']}",
+        f"TFL: {summary['TFL']}",
         f"INT: {summary['INT']}",
         f"FUMBLES: {summary['FUMBLES']}",
         f"TD: {summary['TD']}",
