@@ -35,16 +35,19 @@ def play_blob(row):
 
 
 def classify_play(row):
-    """Classify a snap for factual statistical rollups."""
-    b = play_blob(row)
-    if any(x in b for x in ["SCRAMBLE", "QB RUN", "KEEP", "QB SNEAK"]):
+    """Classify a snap from PLAY TYPE, not the result or comments."""
+    play_type = clean(row.get("PLAY TYPE", "")).upper()
+    normalized = re.sub(r"[^A-Z0-9]+", " ", play_type).strip()
+
+    # Match specific categories first so QB runs and sacks aren't mislabeled.
+    if any(term in normalized for term in ("QB RUN", "SCRAMBLE", "QB KEEP", "QB SNEAK")):
         return "QB RUN"
-    if "SACK" in b:
+    if "SACK" in normalized:
         return "SACK"
-    if any(x in b for x in ["RUN", "RUSH", "DRAW", "SNEAK"]):
-        return "RUN"
-    if any(x in b for x in ["PASS", "SCREEN", "RPO", "QB THROW", "COMPLETE", "INCOMPLETE", "INTERCEPTION"]):
+    if any(term in normalized for term in ("PASS", "SCREEN", "RPO", "QB THROW")):
         return "PASS"
+    if any(term in normalized for term in ("RUN", "RUSH", "DRAW", "SNEAK", "KEEP")):
+        return "RUN"
     return "OTHER"
 
 
@@ -734,16 +737,14 @@ def passing_target_summary(df, min_occurrences=1, target_source="ball_carrier"):
     """
     rows = []
     for _, row in df.iterrows():
-        result = clean(row.get("RESULT", "")).upper()
-        if "INCOMPLETE" not in result and "COMPLETE" not in result:
+        # PLAY TYPE defines the play category; results do not determine pass attempts.
+        if classify_play(row) != "PASS":
             continue
 
-        if target_source == "comments":
-            comment = clean(row.get("COMMENTS", ""))
-            matches = re.findall(r"#\s*(\d{1,2})", comment)
-            target = matches[0] if matches else ""
-        else:
-            target = clean(row.get("BALL CARRIER", ""))
+        # The receiver/player number is recorded in COMMENTS (for example, #8).
+        comment = clean(row.get("COMMENTS", ""))
+        matches = re.findall(r"#\s*(\d{1,2})", comment)
+        target = matches[0] if matches else ""
 
         if not target:
             continue
@@ -860,19 +861,17 @@ def completed_comment_patterns(df, min_occurrences=1, target_source="comments"):
     rows = []
 
     for _, row in df.iterrows():
-        result = clean(row.get("RESULT", "")).upper()
-        if "INCOMPLETE" not in result and "COMPLETE" not in result:
+        # PLAY TYPE defines the play category; results do not determine pass attempts.
+        if classify_play(row) != "PASS":
             continue
 
         play = play_name(row)
         formation = clean(row.get("OFF FORM", ""))
 
-        if target_source == "ball_carrier":
-            target = clean(row.get("BALL CARRIER", ""))
-        else:
-            comment = clean(row.get("COMMENTS", ""))
-            targets = re.findall(r"#\s*(\d{1,2})", comment)
-            target = targets[0] if targets else ""
+        # Passing target/player number comes from COMMENTS (for example, #8).
+        comment = clean(row.get("COMMENTS", ""))
+        targets = re.findall(r"#\s*(\d{1,2})", comment)
+        target = targets[0] if targets else ""
 
         if not play or not formation or not target:
             continue
@@ -920,8 +919,8 @@ def passing_play_formation_counts(df, min_occurrences=1):
     rows = []
 
     for _, row in df.iterrows():
-        result = clean(row.get("RESULT", "")).upper()
-        if "INCOMPLETE" not in result and "COMPLETE" not in result:
+        # PLAY TYPE defines the play category; results do not determine pass attempts.
+        if classify_play(row) != "PASS":
             continue
 
         play = play_name(row)
