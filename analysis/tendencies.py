@@ -959,6 +959,10 @@ def overall_summary(df):
     run_mask = work["_CLASS"].isin({"RUN", "QB RUN"})
     pass_mask = work["_CLASS"] == "PASS"
     sack_mask = work["_CLASS"] == "SACK"
+    # TFL = negative gain/loss on a designed RUN play type (not sacks or QB runs).
+    play_type = work["PLAY TYPE"].map(clean).str.upper()
+    gain_loss = work["GN/LS"].map(numeric)
+    tfl_mask = play_type.eq("RUN") & gain_loss.map(lambda value: value is not None and value < 0)
     blob = work.apply(play_blob, axis=1)
 
     td_mask = blob.str.contains(r"TOUCHDOWN|\bTD\b", regex=True)
@@ -978,6 +982,7 @@ def overall_summary(df):
         "PASS COMP": pass_completions,
         "PASS YDS": round(float(work.loc[pass_mask, "_YARDS"].sum()), 1),
         "SACK": int(sack_mask.sum()),
+        "TFL": int(tfl_mask.sum()),
         "INT": interceptions,
         "FUMBLES": fumbles,
         "TD": int(td_mask.sum()),
