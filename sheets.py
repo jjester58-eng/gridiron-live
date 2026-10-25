@@ -253,17 +253,34 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
             worksheet.update([["No data"]], f"A{row}")
             row += 3
 
-    # First snap of each new offensive series. A series starts when PLAY #
-    # breaks (e.g. 51, 52, 53, 60 => 60 is a new series start).
+    # First snap of each new offensive series. Show a count/percentage
+    # summary first, followed by the supporting play-by-play.
     if possession_start_report is not None:
         worksheet.update([["POSSESSION START — 1ST SNAP RUN / PASS"]], f"A{row}")
         row += 1
         worksheet.update([[
-            "New series = PLAY # break. Counts the first snap only; Run/Pass is classified from the play data."
+            "Each series counts once, using its first recorded RUN or PASS snap. Percentages use classified series starts."
         ]], f"A{row}")
         row += 1
-        values = dataframe_values(possession_start_report)
-        if values:
+
+        if not possession_start_report.empty and "RUN / PASS" in possession_start_report.columns:
+            start_types = possession_start_report["RUN / PASS"].astype(str).str.strip().str.upper()
+            run_count = int((start_types == "RUN").sum())
+            pass_count = int((start_types == "PASS").sum())
+            total_count = run_count + pass_count
+            run_pct = round(run_count / total_count * 100, 1) if total_count else 0.0
+            pass_pct = round(pass_count / total_count * 100, 1) if total_count else 0.0
+            summary_values = [
+                ["FIRST SNAP TYPE", "COUNT", "PERCENT"],
+                ["RUN", run_count, run_pct],
+                ["PASS", pass_count, pass_pct],
+                ["TOTAL CLASSIFIED SERIES", total_count, 100.0 if total_count else 0.0],
+            ]
+            worksheet.update(summary_values, f"A{row}")
+            row += len(summary_values) + 1
+            values = dataframe_values(possession_start_report)
+            worksheet.update([["SERIES START DETAIL"]], f"A{row}")
+            row += 1
             worksheet.update(values, f"A{row}")
             row += len(values) + 2
         else:
