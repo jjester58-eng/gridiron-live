@@ -272,9 +272,9 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
             pass_pct = round(pass_count / total_count * 100, 1) if total_count else 0.0
             summary_values = [
                 ["FIRST SNAP TYPE", "COUNT", "PERCENT"],
-                ["RUN", run_count, run_pct],
-                ["PASS", pass_count, pass_pct],
-                ["TOTAL CLASSIFIED SERIES", total_count, 100.0 if total_count else 0.0],
+                ["RUN", run_count, f"{run_pct}%"],
+                ["PASS", pass_count, f"{pass_pct}%"],
+                ["TOTAL CLASSIFIED SERIES", total_count, "100.0%" if total_count else "0.0%"],
             ]
             worksheet.update(summary_values, f"A{row}")
             row += len(summary_values) + 1
