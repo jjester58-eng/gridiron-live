@@ -14,6 +14,7 @@ from sheets import (
 )
 from analysis.tendencies import analyze, possession_start_first_snap
 from analysis.defense import analyze_defense, formation_call_matrix, analyze_matchup
+from analysis.defense_pairings import write_defensive_call_pairings
 
 
 def main():
@@ -51,6 +52,7 @@ def main():
     )
     defense_report = analyze_defense(defense_df)
     write_defense_sheet(spreadsheet, defense_report)
+    pairing_report = write_defensive_call_pairings(spreadsheet, defense_df, min_occurrences=2)
 
     # Self-scout offense comes from the same WHS DATA source. ODK=O only.
     offense_df = load_offense_source_df(spreadsheet)
@@ -61,6 +63,7 @@ def main():
         f"Gridiron Live complete: {report.total_plays} opponent plays, "
         f"{report.explosive_plays} explosive plays; "
         f"{len(defense_df)} defensive self-scout plays; "
+        f"{len(pairing_report)} defensive call pairings; "
         f"{len(offense_df)} offensive self-scout plays."
     )
 

@@ -1312,22 +1312,21 @@ def field_zone_by_hash(df, top_n=3):
     )
 
 def possession_start_first_snap(df):
-    """Identify the first offensive snap of each series from PLAY # breaks.
+    """Summarize only series-opening snaps that are 1st-and-10.
 
-    A new series starts whenever the numeric PLAY # is not exactly one more
-    than the previous snap. Example: 51, 52, 53, 60 means 60 is the first
-    snap of a new series and therefore counts as one possession-start play.
-    The table records the first snap only and classifies it as RUN or PASS.
+    A new series starts whenever PLAY # breaks (for example 51, 52, 53, 60).
+    Only the first snap of that series is eligible, and it must be DN=1 and
+    DIST=10 exactly. RUN/PASS is classified from PLAY TYPE only; RESULT,
+    yards gained, and outcome are not used.
     """
     columns = [
         "SERIES START", "PLAY #", "DOWN", "DIST", "RUN / PASS",
-        "OFF FORM", "OFF PLAY", "RESULT",
+        "OFF FORM", "OFF PLAY",
     ]
     if df is None or df.empty:
         return pd.DataFrame(columns=columns)
 
     work = df.copy().reset_index(drop=True)
-    work["_PLAY_NUM"] = work["PLAY #"].map(numeric)
     rows = []
     previous_play = None
 
@@ -1338,18 +1337,22 @@ def possession_start_first_snap(df):
 
         is_new_series = previous_play is None or play_num != previous_play + 1
         if is_new_series:
-            play_type = sequence_play_type(row)
-            if play_type in {"RUN", "PASS"}:
-                rows.append({
-                    "SERIES START": "YES",
-                    "PLAY #": int(play_num) if float(play_num).is_integer() else play_num,
-                    "DOWN": clean(row.get("DN")),
-                    "DIST": clean(row.get("DIST")),
-                    "RUN / PASS": play_type,
-                    "OFF FORM": clean(row.get("OFF FORM")),
-                    "OFF PLAY": clean(row.get("OFF PLAY")),
-                    "RESULT": clean(row.get("RESULT")),
-                })
+            down = numeric(row.get("DN"))
+            distance = numeric(row.get("DIST"))
+            # Strictly first down and exactly 10 yards to go.
+            if down == 1 and distance == 10:
+                category = classify_play(row)
+                if category in {"RUN", "QB RUN", "PASS"}:
+                    play_type = "RUN" if category in {"RUN", "QB RUN"} else "PASS"
+                    rows.append({
+                        "SERIES START": "YES",
+                        "PLAY #": int(play_num) if float(play_num).is_integer() else play_num,
+                        "DOWN": 1,
+                        "DIST": 10,
+                        "RUN / PASS": play_type,
+                        "OFF FORM": clean(row.get("OFF FORM")),
+                        "OFF PLAY": clean(row.get("OFF PLAY")),
+                    })
 
         previous_play = play_num
 
