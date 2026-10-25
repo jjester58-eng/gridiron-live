@@ -259,7 +259,7 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
         worksheet.update([["POSSESSION START — 1ST SNAP RUN / PASS"]], f"A{row}")
         row += 1
         worksheet.update([[
-            "Each series counts once, using its first recorded RUN or PASS snap. Percentages use classified series starts."
+            "Only series-opening snaps at 1st down and exactly 10 yards to go. RUN/PASS uses PLAY TYPE only; results are ignored."
         ]], f"A{row}")
         row += 1
 
