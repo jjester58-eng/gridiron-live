@@ -216,7 +216,14 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
         )
     )
 
-    worksheet.clear()
+
+    # Queue every report range in memory, then publish the whole Tendencies
+    # sheet with one Sheets API write. This avoids per-minute write quotas and
+    # prevents a mid-report 429 from leaving the sheet half-rebuilt.
+    pending_updates = []
+
+    def put(values, range_name, **kwargs):
+        pending_updates.append((values, range_name))
 
     summary = report.summary()
     top_line = [
@@ -233,7 +240,7 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
         f"RUSH TD: {summary['RUSH TD']}",
         f"PASS TD: {summary['PASS TD']}",
     ]
-    worksheet.update([top_line], "A1")
+    put([top_line], "A1")
 
     sections = [
         ("DOWN EFFICIENCY", report.third_down_efficiency),
@@ -243,22 +250,22 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
 
     row = 3
     for title, section in sections:
-        worksheet.update([[title]], f"A{row}")
+        put([[title]], f"A{row}")
         row += 1
         values = dataframe_values(section)
         if values:
-            worksheet.update(values, f"A{row}")
+            put(values, f"A{row}")
             row += len(values) + 2
         else:
-            worksheet.update([["No data"]], f"A{row}")
+            put([["No data"]], f"A{row}")
             row += 3
 
     # First snap of each new offensive series. Show a count/percentage
     # summary first, followed by the supporting play-by-play.
     if possession_start_report is not None:
-        worksheet.update([["POSSESSION START — 1ST SNAP RUN / PASS"]], f"A{row}")
+        put([["POSSESSION START — 1ST SNAP RUN / PASS"]], f"A{row}")
         row += 1
-        worksheet.update([[
+        put([[
             "Only series-opening snaps at 1st down and exactly 10 yards to go. RUN/PASS uses PLAY TYPE only; results are ignored."
         ]], f"A{row}")
         row += 1
@@ -276,26 +283,26 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
                 ["PASS", pass_count, f"{pass_pct}%"],
                 ["TOTAL CLASSIFIED SERIES", total_count, "100.0%" if total_count else "0.0%"],
             ]
-            worksheet.update(summary_values, f"A{row}")
+            put(summary_values, f"A{row}")
             row += len(summary_values) + 1
             values = dataframe_values(possession_start_report)
-            worksheet.update([["SERIES START DETAIL"]], f"A{row}")
+            put([["SERIES START DETAIL"]], f"A{row}")
             row += 1
-            worksheet.update(values, f"A{row}")
+            put(values, f"A{row}")
             row += len(values) + 2
         else:
-            worksheet.update([["No qualifying series starts"]], f"A{row}")
+            put([["No qualifying series starts"]], f"A{row}")
             row += 3
 
-    worksheet.update([["PASSING TENDENCIES"]], f"A{row}")
+    put([["PASSING TENDENCIES"]], f"A{row}")
 
     completion_values = dataframe_values(report.completed_comment_patterns)
     summary_values = dataframe_values(report.passing_target_summary)
 
     if completion_values:
-        worksheet.update(completion_values, f"A{row + 1}")
+        put(completion_values, f"A{row + 1}")
     if summary_values:
-        worksheet.update(summary_values, f"G{row + 1}")
+        put(summary_values, f"G{row + 1}")
 
     # The right-side TARGET / COUNT / YARDS table is the same target
     # summary used by OFF SELF SCOUT, now including receiving yards.
@@ -316,15 +323,15 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
         ("REPEATED PLAY SEQUENCES", report.repeated_sequences),
     ]
     for title, section in sections:
-        worksheet.update([[title]], f"A{row}")
+        put([[title]], f"A{row}")
         row += 1
 
         values = dataframe_values(section)
         if values:
-            worksheet.update(values, f"A{row}")
+            put(values, f"A{row}")
             row += len(values) + 2
         else:
-            worksheet.update([["No data"]], f"A{row}")
+            put([["No data"]], f"A{row}")
             row += 3
 
     # Match opponent tendencies directly to WHS defensive history.
@@ -333,9 +340,9 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
         context = matchup_report.context.copy()
         calls = matchup_report.calls.copy()
 
-        worksheet.update([["MATCHED TO WHS DEFENSE"]], f"A{row}")
+        put([["MATCHED TO WHS DEFENSE"]], f"A{row}")
         row += 1
-        worksheet.update([[
+        put([[
             "Opponent tendency → WHS historical response. "
             "Top situations are ranked by opponent frequency; field zones are intentionally excluded."
         ]], f"A{row}")
@@ -369,7 +376,7 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
             context["MATCHUP READ"] = context.apply(matchup_read, axis=1)
 
             context_values = dataframe_values(context)
-            worksheet.update(context_values, f"A{row}")
+            put(context_values, f"A{row}")
             row += len(context_values) + 2
 
             keys = set(zip(context["DOWN & DISTANCE"], context["OFF FORM"]))
@@ -382,9 +389,9 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
                 ].copy()
 
                 if not calls.empty:
-                    worksheet.update([["WHS HISTORICAL CALL EFFECTIVENESS — MATCHED SITUATIONS"]], f"A{row}")
+                    put([["WHS HISTORICAL CALL EFFECTIVENESS — MATCHED SITUATIONS"]], f"A{row}")
                     row += 1
-                    worksheet.update(dataframe_values(calls), f"A{row}")
+                    put(dataframe_values(calls), f"A{row}")
                     row += len(calls) + 2
 
             dc_rows = []
@@ -427,29 +434,58 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
                 })
 
             if dc_rows:
-                worksheet.update([["IF I'M THE WHS DC FRIDAY NIGHT"]], f"A{row}")
+                put([["IF I'M THE WHS DC FRIDAY NIGHT"]], f"A{row}")
                 row += 1
                 dc_df = pd.DataFrame(dc_rows)
-                worksheet.update(dataframe_values(dc_df), f"A{row}")
+                put(dataframe_values(dc_df), f"A{row}")
                 row += len(dc_df) + 2
         else:
-            worksheet.update([["No matched WHS defensive history for the opponent data."]], f"A{row}")
+            put([["No matched WHS defensive history for the opponent data."]], f"A{row}")
             row += 3
 
     # Bottom formation/call chart. Formations and run/pass mix come from
     # ALL INFO SHEET; DEF CALL comes from WHS DATA rows where ODK == D.
     if formation_call_report is not None:
-        worksheet.update([["FORMATION × WHS DEFENSIVE CALL — SITUATIONS"]], f"A{row}")
+        put([["FORMATION × WHS DEFENSIVE CALL — SITUATIONS"]], f"A{row}")
         row += 1
         values = dataframe_values(formation_call_report)
         if values:
-            worksheet.update(values, f"A{row}")
+            put(values, f"A{row}")
             row += len(values) + 2
         else:
-            worksheet.update([["No matching WHS defensive data"]], f"A{row}")
+            put([["No matching WHS defensive data"]], f"A{row}")
             row += 3
 
 
+    # Materialize queued A1/G-column ranges into one full-sheet matrix.
+    # Writing blank cells as well clears stale rows from the prior report.
+    def column_index(label):
+        result = 0
+        for char in label:
+            result = result * 26 + ord(char) - ord("A") + 1
+        return result - 1
+
+    placements = []
+    max_row = worksheet.row_count
+    max_col = worksheet.col_count
+    for values, range_name in pending_updates:
+        match = __import__("re").fullmatch(r"([A-Z]+)([0-9]+)", range_name)
+        if not match:
+            raise ValueError(f"Unsupported report range: {range_name}")
+        start_col = column_index(match.group(1))
+        start_row = int(match.group(2)) - 1
+        placements.append((values, start_row, start_col))
+        max_row = max(max_row, start_row + len(values))
+        if values:
+            max_col = max(max_col, start_col + max(len(row) for row in values))
+
+    grid = [[""] * max_col for _ in range(max_row)]
+    for values, start_row, start_col in placements:
+        for row_offset, values_row in enumerate(values):
+            for col_offset, value in enumerate(values_row):
+                grid[start_row + row_offset][start_col + col_offset] = value
+
+    worksheet.update(grid, "A1", raw=True)
     return worksheet
 
 
