@@ -67,7 +67,7 @@ def load_source_df(spreadsheet):
     # PLAY (STR/WK) is optional scouting metadata. Older opponent sheets
     # may not contain it; downstream sequence analysis can safely treat it
     # as blank rather than stopping the entire report.
-    optional_columns = ["PLAY (STR/WK)"]
+    optional_columns = ["PLAY (STR/WK)", "STUD NUMBER"]
     for column in optional_columns:
         if column not in df.columns:
             df[column] = ""
@@ -78,7 +78,7 @@ def load_source_df(spreadsheet):
             f"Missing required columns in '{SOURCE_SHEET_NAME}': {missing}"
         )
 
-    return df[REQUIRED_COLUMNS].copy()
+    return df[REQUIRED_COLUMNS + ["STUD NUMBER"]].copy()
 
 
 def load_defense_source_df(spreadsheet):
@@ -343,6 +343,16 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
         row += len(stud_values) + 2
     else:
         put([["No STUD ALIGNMENT values recorded"]], f"A{row}")
+        row += 3
+
+    put([["STUD ALIGNMENT — DOWN & DISTANCE"]], f"A{row}")
+    row += 1
+    stud_situation_values = dataframe_values(report.stud_alignment_situation_tendencies)
+    if stud_situation_values:
+        put(stud_situation_values, f"A{row}")
+        row += len(stud_situation_values) + 2
+    else:
+        put([["No STUD involvement recorded by down and distance"]], f"A{row}")
         row += 3
 
     sections = [
