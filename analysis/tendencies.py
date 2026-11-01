@@ -1817,6 +1817,88 @@ def stud_alignment_tendencies(df):
     ).loc[:, columns].reset_index(drop=True)
 
 
+def stud_alignment_situation_tendencies(df):
+    """Summarize STUD targets and run involvement by alignment/formation/down-distance."""
+    columns = [
+        "STUD ALIGNMENT", "FORMATION", "DOWN & DISTANCE", "PLAYS",
+        "PASS PLAYS", "STUD TARGETS", "TARGET %", "RUN PLAYS",
+        "STUD RUN INVOLVEMENTS", "RUN INVOLVEMENT %",
+    ]
+    if df is None or df.empty or "STUD ALIGNMENT" not in df.columns:
+        return pd.DataFrame(columns=columns)
+    required = {"OFF FORM", "STUD NUMBER", "COMMENTS", "DN", "DIST"}
+    if not required.issubset(df.columns):
+        return pd.DataFrame(columns=columns)
+
+    rows = []
+    for _, play in df.iterrows():
+        alignment = clean(play.get("STUD ALIGNMENT", ""))
+        formation = clean(play.get("OFF FORM", ""))
+        situation = situation_bucket(play.get("DN", ""), play.get("DIST", ""))
+        if not alignment or not formation or not situation:
+            continue
+        is_p = is_pass(play)
+        is_r = is_run(play)
+        if not (is_p or is_r):
+            continue
+
+        jersey = normalize_jersey_number(play.get("STUD NUMBER", ""))
+        comment = clean(play.get("COMMENTS", ""))
+        involved = bool(
+            jersey and re.search(
+                rf"(?<!\\d)#\\s*{re.escape(jersey)}(?!\\d)", comment
+            )
+        )
+        rows.append({
+            "STUD ALIGNMENT": alignment,
+            "FORMATION": formation,
+            "DOWN & DISTANCE": situation,
+            "PASS PLAY": int(is_p),
+            "STUD TARGET": int(is_p and involved),
+            "RUN PLAY": int(is_r),
+            "STUD RUN INVOLVEMENT": int(is_r and involved),
+        })
+
+    if not rows:
+        return pd.DataFrame(columns=columns)
+
+    work = pd.DataFrame(rows)
+    grouped = work.groupby(
+        ["STUD ALIGNMENT", "FORMATION", "DOWN & DISTANCE"], sort=False
+    ).agg(
+        PLAYS=("PASS PLAY", "size"),
+        PASS_PLAYS=("PASS PLAY", "sum"),
+        STUD_TARGETS=("STUD TARGET", "sum"),
+        RUN_PLAYS=("RUN PLAY", "sum"),
+        STUD_RUN_INVOLVEMENTS=("STUD RUN INVOLVEMENT", "sum"),
+    ).reset_index()
+    grouped["TARGET %"] = (
+        grouped["STUD_TARGETS"] / grouped["PASS_PLAYS"].replace(0, pd.NA) * 100
+    ).fillna(0).round(1)
+    grouped["RUN INVOLVEMENT %"] = (
+        grouped["STUD_RUN_INVOLVEMENTS"]
+        / grouped["RUN_PLAYS"].replace(0, pd.NA) * 100
+    ).fillna(0).round(1)
+    grouped = grouped.rename(columns={
+        "PASS_PLAYS": "PASS PLAYS",
+        "STUD_TARGETS": "STUD TARGETS",
+        "RUN_PLAYS": "RUN PLAYS",
+        "STUD_RUN_INVOLVEMENTS": "STUD RUN INVOLVEMENTS",
+    })
+    situation_order = {
+        "1st & Long (10+)": 1, "1st & Short (1-9)": 2,
+        "2nd & Long (7+)": 3, "2nd & Medium (4-6)": 4,
+        "2nd & Short (1-3)": 5, "3rd & Long (7+)": 6,
+        "3rd & Medium (4-6)": 7, "3rd & Short (1-3)": 8,
+        "4th Down": 9,
+    }
+    grouped["_ORDER"] = grouped["DOWN & DISTANCE"].map(situation_order).fillna(99)
+    return grouped.sort_values(
+        ["STUD ALIGNMENT", "FORMATION", "_ORDER", "PLAYS"],
+        ascending=[True, True, True, False],
+    ).drop(columns="_ORDER").loc[:, columns].reset_index(drop=True)
+
+
 @dataclass
 class TendencyReport:
     total_plays: int
@@ -1855,6 +1937,7 @@ class TendencyReport:
     rushing_tendencies: pd.DataFrame
     formation_frequency: pd.DataFrame
     stud_alignment_tendencies: pd.DataFrame
+    stud_alignment_situation_tendencies: pd.DataFrame
     _summary_details: dict
 
     def summary(self):
@@ -1875,8 +1958,9 @@ def analyze(df, target_source="comments"):
     # Keep BALL CARRIER when present. It is used by OFF SELF SCOUT only;
     # opponent scouting data does not have to provide it.
     analysis_columns = REQUIRED_COLUMNS.copy()
-    if "BALL CARRIER" in df.columns:
-        analysis_columns.append("BALL CARRIER")
+    for optional_column in ("BALL CARRIER", "STUD NUMBER"):
+        if optional_column in df.columns and optional_column not in analysis_columns:
+            analysis_columns.append(optional_column)
     df = df[analysis_columns].copy()
     df = df[df["PLAY #"].map(clean) != ""].reset_index(drop=True)
     df["EXPLOSIVE"] = df.apply(is_explosive, axis=1)
@@ -1921,6 +2005,7 @@ def analyze(df, target_source="comments"):
         rushing_tendencies(df),
         frequency_tendencies(df, "OFF FORM"),
         stud_alignment_tendencies(df),
+        stud_alignment_situation_tendencies(df),
         overall_summary(df),
     )
 
