@@ -1741,63 +1741,80 @@ def general_play_type_frequency(df):
     return out
 
 
-def stud_alignment_tendencies(df):
-    """Summarize STUD alignment by formation and run/pass tendency.
+def normalize_jersey_number(value):
+    text = clean(value)
+    match = re.search(r"\d{1,2}", text)
+    return str(int(match.group(0))) if match else ""
 
-    STUD ALIGNMENT codes and OFF FORM labels are kept exactly as entered.
-    Only plays classified as RUN or PASS are included in the totals.
-    """
+
+def stud_alignment_tendencies(df):
+    """Summarize STUD alignment and involvement direction by formation."""
     columns = [
-        "STUD ALIGNMENT", "FORMATION", "PLAYS",
-        "RUN", "RUN %", "PASS", "PASS %",
+        "STUD ALIGNMENT", "FORMATION", "PLAYS", "RUN", "RUN %", "PASS", "PASS %",
+        "PASS TARGETS", "TARGET %", "PASS LEFT", "PASS LEFT %", "PASS RIGHT", "PASS RIGHT %",
+        "RUN INVOLVEMENTS", "RUN INVOLVEMENT %", "RUN LEFT", "RUN LEFT %", "RUN RIGHT", "RUN RIGHT %",
     ]
     if df is None or df.empty or "STUD ALIGNMENT" not in df.columns:
+        return pd.DataFrame(columns=columns)
+    required = {"OFF FORM", "STUD NUMBER", "COMMENTS", "PLAY DIR"}
+    if not required.issubset(df.columns):
         return pd.DataFrame(columns=columns)
 
     work = df.copy()
     work["_STUD"] = work["STUD ALIGNMENT"].map(clean)
     work["_FORMATION"] = work["OFF FORM"].map(clean)
     work = work[(work["_STUD"] != "") & (work["_FORMATION"] != "")].copy()
-    if work.empty:
+    rows = []
+    for (alignment, formation), group in work.groupby(["_STUD", "_FORMATION"], sort=False):
+        run_plays = pass_plays = targets = involvements = 0
+        pass_left = pass_right = run_left = run_right = 0
+        for _, play in group.iterrows():
+            is_p = is_pass(play)
+            is_r = is_run(play)
+            if not (is_p or is_r):
+                continue
+            if is_p:
+                pass_plays += 1
+            else:
+                run_plays += 1
+            jersey = normalize_jersey_number(play.get("STUD NUMBER", ""))
+            if not jersey:
+                continue
+            comment = clean(play.get("COMMENTS", ""))
+            pattern = rf"(?<!\d)#\s*{re.escape(jersey)}(?!\d)"
+            if not re.search(pattern, comment):
+                continue
+            direction = normalize_direction(play.get("PLAY DIR", ""))
+            if is_p:
+                targets += 1
+                if direction == "LEFT":
+                    pass_left += 1
+                elif direction == "RIGHT":
+                    pass_right += 1
+            else:
+                involvements += 1
+                if direction == "LEFT":
+                    run_left += 1
+                elif direction == "RIGHT":
+                    run_right += 1
+        total = run_plays + pass_plays
+        rows.append({
+            "STUD ALIGNMENT": alignment, "FORMATION": formation, "PLAYS": total,
+            "RUN": run_plays, "RUN %": round(run_plays / total * 100, 1) if total else 0.0,
+            "PASS": pass_plays, "PASS %": round(pass_plays / total * 100, 1) if total else 0.0,
+            "PASS TARGETS": targets, "TARGET %": round(targets / pass_plays * 100, 1) if pass_plays else 0.0,
+            "PASS LEFT": pass_left, "PASS LEFT %": round(pass_left / targets * 100, 1) if targets else 0.0,
+            "PASS RIGHT": pass_right, "PASS RIGHT %": round(pass_right / targets * 100, 1) if targets else 0.0,
+            "RUN INVOLVEMENTS": involvements,
+            "RUN INVOLVEMENT %": round(involvements / run_plays * 100, 1) if run_plays else 0.0,
+            "RUN LEFT": run_left, "RUN LEFT %": round(run_left / involvements * 100, 1) if involvements else 0.0,
+            "RUN RIGHT": run_right, "RUN RIGHT %": round(run_right / involvements * 100, 1) if involvements else 0.0,
+        })
+    if not rows:
         return pd.DataFrame(columns=columns)
-
-    work["_TYPE"] = work.apply(
-        lambda row: "PASS" if is_pass(row)
-        else "RUN" if is_run(row)
-        else "",
-        axis=1,
-    )
-    work = work[work["_TYPE"].isin(["RUN", "PASS"])].copy()
-    if work.empty:
-        return pd.DataFrame(columns=columns)
-
-    counts = (
-        work.groupby(["_STUD", "_FORMATION", "_TYPE"])
-        .size()
-        .unstack(fill_value=0)
-    )
-    for category in ("RUN", "PASS"):
-        if category not in counts.columns:
-            counts[category] = 0
-
-    out = counts.reset_index().rename(columns={
-        "_STUD": "STUD ALIGNMENT",
-        "_FORMATION": "FORMATION",
-    })
-    out["PLAYS"] = out["RUN"] + out["PASS"]
-    for category in ("RUN", "PASS"):
-        out[f"{category} %"] = (
-            out[category] / out["PLAYS"] * 100
-        ).round(1)
-
-    return (
-        out.sort_values(
-            ["PLAYS", "STUD ALIGNMENT", "FORMATION"],
-            ascending=[False, True, True],
-        )
-        .loc[:, columns]
-        .reset_index(drop=True)
-    )
+    return pd.DataFrame(rows).sort_values(
+        ["PLAYS", "STUD ALIGNMENT", "FORMATION"], ascending=[False, True, True]
+    ).loc[:, columns].reset_index(drop=True)
 
 
 @dataclass
