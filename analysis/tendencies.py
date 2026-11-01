@@ -1741,6 +1741,50 @@ def general_play_type_frequency(df):
     return out
 
 
+def stud_alignment_tendencies(df):
+    """Summarize recorded STUD ALIGNMENT codes and their run/pass mix.
+
+    Alignment values are treated as labels exactly as entered; the report
+    does not infer what the numeric/letter components mean.
+    """
+    columns = [
+        "STUD ALIGNMENT", "PLAYS", "RUN", "RUN %", "PASS", "PASS %",
+        "OTHER", "OTHER %",
+    ]
+    if df is None or df.empty or "STUD ALIGNMENT" not in df.columns:
+        return pd.DataFrame(columns=columns)
+
+    work = df.copy()
+    work["_STUD"] = work["STUD ALIGNMENT"].map(clean)
+    work = work[work["_STUD"] != ""].copy()
+    if work.empty:
+        return pd.DataFrame(columns=columns)
+
+    work["_TYPE"] = work.apply(
+        lambda row: "PASS" if is_pass(row)
+        else "RUN" if is_run(row)
+        else "OTHER",
+        axis=1,
+    )
+    counts = work.groupby(["_STUD", "_TYPE"]).size().unstack(fill_value=0)
+    for category in ("RUN", "PASS", "OTHER"):
+        if category not in counts.columns:
+            counts[category] = 0
+
+    out = counts.reset_index().rename(columns={"_STUD": "STUD ALIGNMENT"})
+    out["PLAYS"] = out[["RUN", "PASS", "OTHER"]].sum(axis=1)
+    for category in ("RUN", "PASS", "OTHER"):
+        out[f"{category} %"] = (
+            out[category] / out["PLAYS"] * 100
+        ).round(1)
+
+    return (
+        out.sort_values(["PLAYS", "STUD ALIGNMENT"], ascending=[False, True])
+        .loc[:, columns]
+        .reset_index(drop=True)
+    )
+
+
 @dataclass
 class TendencyReport:
     total_plays: int
@@ -1778,6 +1822,7 @@ class TendencyReport:
     passing_target_summary: pd.DataFrame
     rushing_tendencies: pd.DataFrame
     formation_frequency: pd.DataFrame
+    stud_alignment_tendencies: pd.DataFrame
     _summary_details: dict
 
     def summary(self):
@@ -1843,6 +1888,7 @@ def analyze(df, target_source="comments"):
         passing_target_summary(df, target_source=target_source),
         rushing_tendencies(df),
         frequency_tendencies(df, "OFF FORM"),
+        stud_alignment_tendencies(df),
         overall_summary(df),
     )
 
