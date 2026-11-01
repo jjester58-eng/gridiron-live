@@ -340,8 +340,8 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
     stud = report.stud_alignment_tendencies
     if stud is not None and not stud.empty:
         # Keep the two views compact and side by side for quick coach reads.
-        run_columns = ["STUD ALIGNMENT", "FORMATION", "RUN", "RUN %"]
-        pass_columns = ["STUD ALIGNMENT", "FORMATION", "PASS", "PASS %"]
+        run_columns = ["STUD ALIGNMENT", "FORMATION", "RUN", "RUN %", "RUN RT/LT", "RUN FD/BDY"]
+        pass_columns = ["STUD ALIGNMENT", "FORMATION", "PASS", "PASS %", "PASS RT/LT", "PASS FD/BDY"]
         run_table = stud[[c for c in run_columns if c in stud.columns]].copy()
         pass_table = stud[[c for c in pass_columns if c in stud.columns]].copy()
 
