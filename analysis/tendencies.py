@@ -1790,9 +1790,15 @@ def stud_alignment_tendencies(df):
     ]
     if df is None or df.empty or "STUD ALIGNMENT" not in df.columns:
         return pd.DataFrame(columns=columns)
-    required = {"OFF FORM", "STUD NUMBER", "COMMENTS", "PLAY DIR"}
+    required = {"OFF FORM", "STUD NUMBER", "COMMENTS"}
     if not required.issubset(df.columns):
         return pd.DataFrame(columns=columns)
+
+    # PLAY DIR is optional for the frequency table. Missing direction data
+    # must not suppress the STUD alignment, formation, RUN, and PASS totals.
+    if "PLAY DIR" not in df.columns:
+        df = df.copy()
+        df["PLAY DIR"] = ""
 
     work = df.copy()
     work["_STUD"] = work["STUD ALIGNMENT"].map(clean)
