@@ -2005,7 +2005,7 @@ def analyze(df, target_source="comments"):
     # Keep BALL CARRIER when present. It is used by OFF SELF SCOUT only;
     # opponent scouting data does not have to provide it.
     analysis_columns = REQUIRED_COLUMNS.copy()
-    for optional_column in ("BALL CARRIER", "STUD NUMBER"):
+    for optional_column in ("BALL CARRIER", "STUD NUMBER", "PLAY (FLD,BDY)"):
         if optional_column in df.columns and optional_column not in analysis_columns:
             analysis_columns.append(optional_column)
     df = df[analysis_columns].copy()
