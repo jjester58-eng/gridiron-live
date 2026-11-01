@@ -1758,29 +1758,6 @@ def is_stud_involvement(play):
     return bool(re.search(pattern, comment))
 
 
-def stud_alignment_diagnostics(df):
-    """Count STUD qualification stages without exposing individual play data."""
-    if df is None or df.empty:
-        return pd.DataFrame([{"CHECK": "Source rows", "COUNT": 0}])
-    alignment = df["STUD ALIGNMENT"].map(clean) != "" if "STUD ALIGNMENT" in df else pd.Series(False, index=df.index)
-    number = df["STUD NUMBER"].map(normalize_jersey_number) != "" if "STUD NUMBER" in df else pd.Series(False, index=df.index)
-    comments = df["COMMENTS"].map(clean) != "" if "COMMENTS" in df else pd.Series(False, index=df.index)
-    base = alignment & number
-    exact_match = df.apply(is_stud_involvement, axis=1) if {"STUD ALIGNMENT", "STUD NUMBER", "COMMENTS"}.issubset(df.columns) else pd.Series(False, index=df.index)
-    qualified = df[exact_match]
-    recognized = qualified.apply(lambda play: is_pass(play) or is_run(play), axis=1) if not qualified.empty else pd.Series(dtype=bool)
-    return pd.DataFrame([
-        {"CHECK": "Source rows", "COUNT": int(len(df))},
-        {"CHECK": "Rows with STUD ALIGNMENT", "COUNT": int(alignment.sum())},
-        {"CHECK": "Rows with alignment + STUD NUMBER", "COUNT": int(base.sum())},
-        {"CHECK": "Rows with alignment + number + nonblank COMMENTS", "COUNT": int((base & comments).sum())},
-        {"CHECK": "Exact # jersey matches (qualifying STUD rows)", "COUNT": int(exact_match.sum())},
-        {"CHECK": "Qualifying rows with blank OFF FORM", "COUNT": int((qualified["OFF FORM"].map(clean) == "").sum()) if "OFF FORM" in qualified else 0},
-        {"CHECK": "Qualifying rows classified RUN or PASS", "COUNT": int(recognized.sum())},
-        {"CHECK": "Qualifying rows classified OTHER", "COUNT": int(len(qualified) - recognized.sum())},
-    ])
-
-
 def stud_alignment_tendencies(df):
     """Summarize only verified STUD snaps, grouped by alignment and formation."""
     columns = [
@@ -1969,7 +1946,6 @@ class TendencyReport:
     rushing_tendencies: pd.DataFrame
     formation_frequency: pd.DataFrame
     stud_alignment_tendencies: pd.DataFrame
-    stud_alignment_diagnostics: pd.DataFrame
     stud_alignment_situation_tendencies: pd.DataFrame
     _summary_details: dict
 
@@ -2038,7 +2014,6 @@ def analyze(df, target_source="comments"):
         rushing_tendencies(df),
         frequency_tendencies(df, "OFF FORM"),
         stud_alignment_tendencies(df),
-        stud_alignment_diagnostics(df),
         stud_alignment_situation_tendencies(df),
         overall_summary(df),
     )
