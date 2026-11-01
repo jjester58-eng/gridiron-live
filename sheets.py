@@ -345,14 +345,13 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
         run_table = stud[[c for c in run_columns if c in stud.columns]].copy()
         pass_table = stud[[c for c in pass_columns if c in stud.columns]].copy()
 
-        # Omit zero-frequency rows, then rank each table by its own
-        # run/pass frequency so the strongest tendencies appear first.
+        # Omit zero-frequency rows, then rank each table by raw play count, with percentage as the tie-breaker so the strongest tendencies appear first.
         if "RUN %" in run_table.columns:
             run_table["_FREQUENCY"] = pd.to_numeric(
                 run_table["RUN %"], errors="coerce"
             ).fillna(0)
             run_table = run_table[run_table["_FREQUENCY"] > 0].sort_values(
-                ["_FREQUENCY", "RUN", "STUD ALIGNMENT", "FORMATION"],
+                ["RUN", "_FREQUENCY", "STUD ALIGNMENT", "FORMATION"],
                 ascending=[False, False, True, True],
             ).drop(columns="_FREQUENCY")
         if "PASS %" in pass_table.columns:
@@ -360,7 +359,7 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
                 pass_table["PASS %"], errors="coerce"
             ).fillna(0)
             pass_table = pass_table[pass_table["_FREQUENCY"] > 0].sort_values(
-                ["_FREQUENCY", "PASS", "STUD ALIGNMENT", "FORMATION"],
+                ["PASS", "_FREQUENCY", "STUD ALIGNMENT", "FORMATION"],
                 ascending=[False, False, True, True],
             ).drop(columns="_FREQUENCY")
 
@@ -397,14 +396,13 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
             [c for c in run_columns if c in stud_situation.columns]
         ].copy()
 
-        # Hide zero-frequency situations and rank each table by its own
-        # STUD frequency: target percentage for pass, involvement percentage for run.
+        # Hide zero-frequency situations and rank each table by STUD target/run-involvement count, with percentage as the tie-breaker.
         if "TARGET %" in pass_table.columns:
             pass_table["_FREQUENCY"] = pd.to_numeric(
                 pass_table["TARGET %"], errors="coerce"
             ).fillna(0)
             pass_table = pass_table[pass_table["_FREQUENCY"] > 0].sort_values(
-                ["_FREQUENCY", "STUD TARGETS", "STUD ALIGNMENT", "FORMATION"],
+                ["STUD TARGETS", "_FREQUENCY", "STUD ALIGNMENT", "FORMATION"],
                 ascending=[False, False, True, True],
             ).drop(columns="_FREQUENCY")
         if "RUN INVOLVEMENT %" in run_table.columns:
@@ -412,7 +410,7 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
                 run_table["RUN INVOLVEMENT %"], errors="coerce"
             ).fillna(0)
             run_table = run_table[run_table["_FREQUENCY"] > 0].sort_values(
-                ["_FREQUENCY", "STUD RUN INVOLVEMENTS", "STUD ALIGNMENT", "FORMATION"],
+                ["STUD RUN INVOLVEMENTS", "_FREQUENCY", "STUD ALIGNMENT", "FORMATION"],
                 ascending=[False, False, True, True],
             ).drop(columns="_FREQUENCY")
 
