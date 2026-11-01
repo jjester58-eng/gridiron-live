@@ -293,31 +293,22 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
             ]
             put(summary_values, f"A{row}")
             row += len(summary_values) + 1
-            values = dataframe_values(possession_start_report)
-            put([["SERIES START DETAIL"]], f"A{row}")
-            row += 1
-            put(values, f"A{row}")
-            row += len(values) + 2
+            # Keep the series-start summary only; omit the supporting
+            # play-by-play detail table to keep the report compact.
         else:
             put([["No qualifying series starts"]], f"A{row}")
             row += 3
 
     put([["PASSING TENDENCIES"]], f"A{row}")
 
-    completion_values = dataframe_values(report.completed_comment_patterns)
+    # Keep the concise target summary and place it at the left edge.
+    # The PLAY / FORMATION / TARGET / COUNT / PLAY_NUMBERS detail table
+    # is intentionally omitted from the Tendencies report.
     summary_values = dataframe_values(report.passing_target_summary)
 
-    if completion_values:
-        put(completion_values, f"A{row + 1}")
     if summary_values:
-        put(summary_values, f"G{row + 1}")
-
-    # The right-side TARGET / COUNT / YARDS table is the same target
-    # summary used by OFF SELF SCOUT, now including receiving yards.
-    if completion_values or summary_values:
-        detail_rows = len(completion_values) if completion_values else 0
-        summary_rows = len(summary_values) if summary_values else 0
-        row += max(detail_rows, summary_rows) + 4
+        put(summary_values, f"A{row + 1}")
+        row += len(summary_values) + 3
     else:
         row += 3
 
