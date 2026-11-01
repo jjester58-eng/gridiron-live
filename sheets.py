@@ -345,6 +345,16 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
         put([["No STUD ALIGNMENT values recorded"]], f"A{row}")
         row += 3
 
+    put([["STUD QUALIFICATION CHECK — SUMMARY COUNTS"]], f"A{row}")
+    row += 1
+    stud_diagnostic_values = dataframe_values(report.stud_alignment_diagnostics)
+    if stud_diagnostic_values:
+        put(stud_diagnostic_values, f"A{row}")
+        row += len(stud_diagnostic_values) + 2
+    else:
+        put([["No STUD diagnostic data available"]], f"A{row}")
+        row += 3
+
     put([["STUD ALIGNMENT — DOWN & DISTANCE"]], f"A{row}")
     row += 1
     stud_situation_values = dataframe_values(report.stud_alignment_situation_tendencies)
