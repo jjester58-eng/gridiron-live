@@ -312,8 +312,40 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
     else:
         row += 3
 
+    # Field-zone efficiency leads this group. Put the formation/call and
+    # STUD alignment reports immediately after it, before the remaining trends.
+    put([["PLAY EFFICIENCY — FIELD ZONES"]], f"A{row}")
+    row += 1
+    values = dataframe_values(report.field_zone_efficiency)
+    if values:
+        put(values, f"A{row}")
+        row += len(values) + 2
+    else:
+        put([["No data"]], f"A{row}")
+        row += 3
+
+    if formation_call_report is not None:
+        put([["FORMATION × WHS DEFENSIVE CALL — SITUATIONS"]], f"A{row}")
+        row += 1
+        values = dataframe_values(formation_call_report)
+        if values:
+            put(values, f"A{row}")
+            row += len(values) + 2
+        else:
+            put([["No matching WHS defensive data"]], f"A{row}")
+            row += 3
+
+    put([["STUD ALIGNMENT — FREQUENCY & RUN / PASS"]], f"A{row}")
+    row += 1
+    stud_values = dataframe_values(report.stud_alignment_tendencies)
+    if stud_values:
+        put(stud_values, f"A{row}")
+        row += len(stud_values) + 2
+    else:
+        put([["No STUD ALIGNMENT values recorded"]], f"A{row}")
+        row += 3
+
     sections = [
-        ("PLAY EFFICIENCY — FIELD ZONES", report.field_zone_efficiency),
         ("RUN / PASS PATTERNS", report.run_pass_sequences),
         ("LEFT / RIGHT PATTERNS", report.left_right_sequences),
         ("HASH + DOWN/DISTANCE PLAY PROBABILITIES", report.hash_down_distance_play_probabilities),
@@ -328,18 +360,6 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
             row += len(values) + 2
         else:
             put([["No data"]], f"A{row}")
-            row += 3
-
-    # Place the formation/defensive-call chart directly after field-zone efficiency.
-    if formation_call_report is not None:
-        put([["FORMATION × WHS DEFENSIVE CALL — SITUATIONS"]], f"A{row}")
-        row += 1
-        values = dataframe_values(formation_call_report)
-        if values:
-            put(values, f"A{row}")
-            row += len(values) + 2
-        else:
-            put([["No matching WHS defensive data"]], f"A{row}")
             row += 3
 
     # Match opponent tendencies directly to WHS defensive history.
@@ -450,9 +470,6 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
         else:
             put([["No matched WHS defensive history for the opponent data."]], f"A{row}")
             row += 3
-
-    # Formation/call chart is written immediately after field-zone efficiency.
-    # The separate STUD alignment report will be placed directly after it.
 
 
     # Materialize queued A1/G-column ranges into one full-sheet matrix.
