@@ -335,15 +335,25 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
             put([["No matching WHS defensive data"]], f"A{row}")
             row += 3
 
-    put([["STUD ALIGNMENT — FREQUENCY & RUN / PASS"]], f"A{row}")
+    put([["STUD ALIGNMENT — RUN & PASS TENDENCIES"]], f"A{row}")
     row += 1
-    stud_values = dataframe_values(report.stud_alignment_tendencies)
-    if stud_values:
-        put(stud_values, f"A{row}")
-        row += len(stud_values) + 2
+    stud = report.stud_alignment_tendencies
+    if stud is not None and not stud.empty:
+        # Keep the two views compact and side by side for quick coach reads.
+        run_columns = ["STUD ALIGNMENT", "FORMATION", "RUN", "RUN %"]
+        pass_columns = ["STUD ALIGNMENT", "FORMATION", "PASS", "PASS %"]
+        run_values = dataframe_values(stud[[c for c in run_columns if c in stud.columns]])
+        pass_values = dataframe_values(stud[[c for c in pass_columns if c in stud.columns]])
+        put([["RUN TENDENCIES"]], f"A{row}")
+        put([["PASS TENDENCIES"]], f"G{row}")
+        put(run_values, f"A{row + 1}")
+        put(pass_values, f"G{row + 1}")
+        row += max(len(run_values), len(pass_values)) + 2
     else:
-        put([["No STUD ALIGNMENT values recorded"]], f"A{row}")
-        row += 3
+        put([["RUN TENDENCIES", "", "", "", "", "", "PASS TENDENCIES"]], f"A{row}")
+        put([["No STUD ALIGNMENT values recorded"]], f"A{row + 1}")
+        put([["No STUD ALIGNMENT values recorded"]], f"G{row + 1}")
+        row += 4
 
     put([["STUD ALIGNMENT — DOWN & DISTANCE"]], f"A{row}")
     row += 1
