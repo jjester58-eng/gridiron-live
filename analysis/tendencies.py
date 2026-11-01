@@ -1764,6 +1764,7 @@ def stud_alignment_tendencies(df):
         "STUD ALIGNMENT", "FORMATION", "PLAYS", "RUN", "RUN %", "PASS", "PASS %",
         "PASS TARGETS", "TARGET %", "PASS LEFT", "PASS LEFT %", "PASS RIGHT", "PASS RIGHT %",
         "RUN INVOLVEMENTS", "RUN INVOLVEMENT %", "RUN LEFT", "RUN LEFT %", "RUN RIGHT", "RUN RIGHT %",
+        "RUN RT/LT", "RUN FD/BDY", "PASS RT/LT", "PASS FD/BDY",
     ]
     if df is None or df.empty or "STUD ALIGNMENT" not in df.columns:
         return pd.DataFrame(columns=columns)
@@ -1791,6 +1792,10 @@ def stud_alignment_tendencies(df):
     for (alignment, formation), group in work.groupby(["_STUD", "_FORMATION"], sort=False):
         run_plays = pass_plays = targets = involvements = 0
         pass_left = pass_right = run_left = run_right = 0
+        run_directions = {"RIGHT": 0, "LEFT": 0}
+        pass_directions = {"RIGHT": 0, "LEFT": 0}
+        run_sides = {"FLD": 0, "BDY": 0}
+        pass_sides = {"FLD": 0, "BDY": 0}
         for _, play in group.iterrows():
             is_p = is_pass(play)
             is_r = is_run(play)
@@ -1801,18 +1806,39 @@ def stud_alignment_tendencies(df):
             else:
                 continue
             direction = normalize_direction(play.get("PLAY DIR", ""))
+            side = clean(play.get("PLAY (FLD,BDY)", "")).upper()
+            if side in {"FIELD", "F"}:
+                side = "FLD"
+            elif side in {"BOUNDARY", "B"}:
+                side = "BDY"
             if is_p:
                 targets += 1
                 if direction == "LEFT":
                     pass_left += 1
                 elif direction == "RIGHT":
                     pass_right += 1
+                if direction:
+                    pass_directions[direction] += 1
+                if side in pass_sides:
+                    pass_sides[side] += 1
             else:
                 involvements += 1
                 if direction == "LEFT":
                     run_left += 1
                 elif direction == "RIGHT":
                     run_right += 1
+                if direction:
+                    run_directions[direction] += 1
+                if side in run_sides:
+                    run_sides[side] += 1
+        def split_percentages(counts, first, second):
+            total_count = sum(counts.values())
+            if not total_count:
+                return ""
+            first_pct = counts[first] / total_count * 100
+            second_pct = counts[second] / total_count * 100
+            return f"{first} {first_pct:.1f}% / {second} {second_pct:.1f}%"
+
         total = len(group)
         rows.append({
             "STUD ALIGNMENT": alignment, "FORMATION": formation, "PLAYS": total,
@@ -1825,6 +1851,10 @@ def stud_alignment_tendencies(df):
             "RUN INVOLVEMENT %": round(involvements / run_plays * 100, 1) if run_plays else 0.0,
             "RUN LEFT": run_left, "RUN LEFT %": round(run_left / involvements * 100, 1) if involvements else 0.0,
             "RUN RIGHT": run_right, "RUN RIGHT %": round(run_right / involvements * 100, 1) if involvements else 0.0,
+            "RUN RT/LT": split_percentages(run_directions, "RIGHT", "LEFT"),
+            "RUN FD/BDY": split_percentages(run_sides, "FLD", "BDY"),
+            "PASS RT/LT": split_percentages(pass_directions, "RIGHT", "LEFT"),
+            "PASS FD/BDY": split_percentages(pass_sides, "FLD", "BDY"),
         })
     if not rows:
         return pd.DataFrame(columns=columns)
