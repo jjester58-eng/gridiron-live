@@ -64,7 +64,15 @@ def load_source_df(spreadsheet):
     df = df.loc[:, [c != "" for c in df.columns]]
     df = df.loc[:, ~pd.Index(df.columns).duplicated()]
 
-    missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
+    # PLAY (STR/WK) is optional scouting metadata. Older opponent sheets
+    # may not contain it; downstream sequence analysis can safely treat it
+    # as blank rather than stopping the entire report.
+    optional_columns = ["PLAY (STR/WK)"]
+    for column in optional_columns:
+        if column not in df.columns:
+            df[column] = ""
+
+    missing = [c for c in REQUIRED_COLUMNS if c not in df.columns and c not in optional_columns]
     if missing:
         raise ValueError(
             f"Missing required columns in '{SOURCE_SHEET_NAME}': {missing}"
