@@ -371,13 +371,46 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
 
     put([["STUD ALIGNMENT — DOWN & DISTANCE"]], f"A{row}")
     row += 1
-    stud_situation_values = dataframe_values(report.stud_alignment_situation_tendencies)
-    if stud_situation_values:
-        put(stud_situation_values, f"A{row}")
-        row += len(stud_situation_values) + 2
+    stud_situation = report.stud_alignment_situation_tendencies
+    if stud_situation is not None and not stud_situation.empty:
+        # Mirror the compact side-by-side STUD run/pass layout above.
+        pass_columns = [
+            "STUD ALIGNMENT", "FORMATION", "DOWN & DISTANCE",
+            "PASS PLAYS", "STUD TARGETS", "TARGET %",
+        ]
+        run_columns = [
+            "STUD ALIGNMENT", "FORMATION", "DOWN & DISTANCE",
+            "RUN PLAYS", "STUD RUN INVOLVEMENTS", "RUN INVOLVEMENT %",
+        ]
+        pass_table = stud_situation[
+            [c for c in pass_columns if c in stud_situation.columns]
+        ].copy()
+        run_table = stud_situation[
+            [c for c in run_columns if c in stud_situation.columns]
+        ].copy()
+
+        # Hide situations with no verified STUD target/run involvement.
+        if "TARGET %" in pass_table.columns:
+            pass_table = pass_table[
+                pd.to_numeric(pass_table["TARGET %"], errors="coerce").fillna(0) > 0
+            ]
+        if "RUN INVOLVEMENT %" in run_table.columns:
+            run_table = run_table[
+                pd.to_numeric(run_table["RUN INVOLVEMENT %"], errors="coerce").fillna(0) > 0
+            ]
+
+        pass_values = dataframe_values(pass_table.reset_index(drop=True))
+        run_values = dataframe_values(run_table.reset_index(drop=True))
+        put([["PASS TENDENCIES"]], f"A{row}")
+        put([["RUN TENDENCIES"]], f"G{row}")
+        put(pass_values, f"A{row + 1}")
+        put(run_values, f"G{row + 1}")
+        row += max(len(pass_values), len(run_values)) + 2
     else:
-        put([["No STUD involvement recorded by down and distance"]], f"A{row}")
-        row += 3
+        put([["PASS TENDENCIES", "", "", "", "", "", "RUN TENDENCIES"]], f"A{row}")
+        put([["No STUD involvement recorded by down and distance"]], f"A{row + 1}")
+        put([["No STUD involvement recorded by down and distance"]], f"G{row + 1}")
+        row += 4
 
     sections = [
         ("RUN / PASS PATTERNS", report.run_pass_sequences),
