@@ -1747,6 +1747,17 @@ def normalize_jersey_number(value):
     return str(int(match.group(0))) if match else ""
 
 
+def is_stud_involvement(play):
+    """A STUD play qualifies only when alignment, jersey number, and comment match."""
+    alignment = clean(play.get("STUD ALIGNMENT", ""))
+    jersey = normalize_jersey_number(play.get("STUD NUMBER", ""))
+    comment = clean(play.get("COMMENTS", ""))
+    if not alignment or not jersey or not comment:
+        return False
+    pattern = rf"(?<!\d)#\s*{re.escape(jersey)}(?!\d)"
+    return bool(re.search(pattern, comment))
+
+
 def stud_alignment_tendencies(df):
     """Summarize STUD alignment and involvement direction by formation."""
     columns = [
@@ -1764,6 +1775,8 @@ def stud_alignment_tendencies(df):
     work["_STUD"] = work["STUD ALIGNMENT"].map(clean)
     work["_FORMATION"] = work["OFF FORM"].map(clean)
     work = work[(work["_STUD"] != "") & (work["_FORMATION"] != "")].copy()
+    # Exclude non-involvement snaps entirely from STUD counts and percentage denominators.
+    work = work[work.apply(is_stud_involvement, axis=1)].copy()
     rows = []
     for (alignment, formation), group in work.groupby(["_STUD", "_FORMATION"], sort=False):
         run_plays = pass_plays = targets = involvements = 0
@@ -1777,13 +1790,6 @@ def stud_alignment_tendencies(df):
                 pass_plays += 1
             else:
                 run_plays += 1
-            jersey = normalize_jersey_number(play.get("STUD NUMBER", ""))
-            if not jersey:
-                continue
-            comment = clean(play.get("COMMENTS", ""))
-            pattern = rf"(?<!\d)#\s*{re.escape(jersey)}(?!\d)"
-            if not re.search(pattern, comment):
-                continue
             direction = normalize_direction(play.get("PLAY DIR", ""))
             if is_p:
                 targets += 1
@@ -1837,26 +1843,22 @@ def stud_alignment_situation_tendencies(df):
         situation = situation_bucket(play.get("DN", ""), play.get("DIST", ""))
         if not alignment or not formation or not situation:
             continue
+        # Only qualifying STUD involvement snaps contribute to this report.
+        if not is_stud_involvement(play):
+            continue
         is_p = is_pass(play)
         is_r = is_run(play)
         if not (is_p or is_r):
             continue
 
-        jersey = normalize_jersey_number(play.get("STUD NUMBER", ""))
-        comment = clean(play.get("COMMENTS", ""))
-        involved = bool(
-            jersey and re.search(
-                rf"(?<!\d)#\s*{re.escape(jersey)}(?!\d)", comment
-            )
-        )
         rows.append({
             "STUD ALIGNMENT": alignment,
             "FORMATION": formation,
             "DOWN & DISTANCE": situation,
             "PASS PLAY": int(is_p),
-            "STUD TARGET": int(is_p and involved),
+            "STUD TARGET": int(is_p),
             "RUN PLAY": int(is_r),
-            "STUD RUN INVOLVEMENT": int(is_r and involved),
+            "STUD RUN INVOLVEMENT": int(is_r),
         })
 
     if not rows:
