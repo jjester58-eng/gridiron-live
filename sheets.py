@@ -67,7 +67,7 @@ def load_source_df(spreadsheet):
     # PLAY (STR/WK) is optional scouting metadata. Older opponent sheets
     # may not contain it; downstream sequence analysis can safely treat it
     # as blank rather than stopping the entire report.
-    optional_columns = ["PLAY (STR/WK)", "STUD NUMBER"]
+    optional_columns = ["PLAY (STR/WK)", "STUD NUMBER", "PLAY (FLD,BDY)"]
     for column in optional_columns:
         if column not in df.columns:
             df[column] = ""
@@ -78,7 +78,7 @@ def load_source_df(spreadsheet):
             f"Missing required columns in '{SOURCE_SHEET_NAME}': {missing}"
         )
 
-    return df[REQUIRED_COLUMNS + ["STUD NUMBER"]].copy()
+    return df[REQUIRED_COLUMNS + ["STUD NUMBER", "PLAY (FLD,BDY)"]].copy()
 
 
 def load_defense_source_df(spreadsheet):
