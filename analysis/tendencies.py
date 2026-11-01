@@ -1846,7 +1846,7 @@ def stud_alignment_situation_tendencies(df):
         comment = clean(play.get("COMMENTS", ""))
         involved = bool(
             jersey and re.search(
-                rf"(?<!\\d)#\\s*{re.escape(jersey)}(?!\\d)", comment
+                rf"(?<!\d)#\s*{re.escape(jersey)}(?!\d)", comment
             )
         )
         rows.append({
@@ -1872,12 +1872,13 @@ def stud_alignment_situation_tendencies(df):
         RUN_PLAYS=("RUN PLAY", "sum"),
         STUD_RUN_INVOLVEMENTS=("STUD RUN INVOLVEMENT", "sum"),
     ).reset_index()
+    pass_denominator = grouped["PASS_PLAYS"].where(grouped["PASS_PLAYS"] > 0)
+    run_denominator = grouped["RUN_PLAYS"].where(grouped["RUN_PLAYS"] > 0)
     grouped["TARGET %"] = (
-        grouped["STUD_TARGETS"] / grouped["PASS_PLAYS"].replace(0, pd.NA) * 100
+        grouped["STUD_TARGETS"] / pass_denominator * 100
     ).fillna(0).round(1)
     grouped["RUN INVOLVEMENT %"] = (
-        grouped["STUD_RUN_INVOLVEMENTS"]
-        / grouped["RUN_PLAYS"].replace(0, pd.NA) * 100
+        grouped["STUD_RUN_INVOLVEMENTS"] / run_denominator * 100
     ).fillna(0).round(1)
     grouped = grouped.rename(columns={
         "PASS_PLAYS": "PASS PLAYS",
