@@ -342,8 +342,22 @@ def write_report(spreadsheet, report, matchup_report=None, formation_call_report
         # Keep the two views compact and side by side for quick coach reads.
         run_columns = ["STUD ALIGNMENT", "FORMATION", "RUN", "RUN %"]
         pass_columns = ["STUD ALIGNMENT", "FORMATION", "PASS", "PASS %"]
-        run_values = dataframe_values(stud[[c for c in run_columns if c in stud.columns]])
-        pass_values = dataframe_values(stud[[c for c in pass_columns if c in stud.columns]])
+        run_table = stud[[c for c in run_columns if c in stud.columns]].copy()
+        pass_table = stud[[c for c in pass_columns if c in stud.columns]].copy()
+
+        # Omit formations with no activity in that category; zero-percent
+        # rows add clutter and do not help the coach identify tendencies.
+        if "RUN %" in run_table.columns:
+            run_table = run_table[
+                pd.to_numeric(run_table["RUN %"], errors="coerce").fillna(0) > 0
+            ]
+        if "PASS %" in pass_table.columns:
+            pass_table = pass_table[
+                pd.to_numeric(pass_table["PASS %"], errors="coerce").fillna(0) > 0
+            ]
+
+        run_values = dataframe_values(run_table.reset_index(drop=True))
+        pass_values = dataframe_values(pass_table.reset_index(drop=True))
         put([["RUN TENDENCIES"]], f"A{row}")
         put([["PASS TENDENCIES"]], f"G{row}")
         put(run_values, f"A{row + 1}")
