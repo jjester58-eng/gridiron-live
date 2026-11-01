@@ -1742,44 +1742,59 @@ def general_play_type_frequency(df):
 
 
 def stud_alignment_tendencies(df):
-    """Summarize recorded STUD ALIGNMENT codes and their run/pass mix.
+    """Summarize STUD alignment by formation and run/pass tendency.
 
-    Alignment values are treated as labels exactly as entered; the report
-    does not infer what the numeric/letter components mean.
+    STUD ALIGNMENT codes and OFF FORM labels are kept exactly as entered.
+    Only plays classified as RUN or PASS are included in the totals.
     """
     columns = [
-        "STUD ALIGNMENT", "PLAYS", "RUN", "RUN %", "PASS", "PASS %",
-        "OTHER", "OTHER %",
+        "STUD ALIGNMENT", "FORMATION", "PLAYS",
+        "RUN", "RUN %", "PASS", "PASS %",
     ]
     if df is None or df.empty or "STUD ALIGNMENT" not in df.columns:
         return pd.DataFrame(columns=columns)
 
     work = df.copy()
     work["_STUD"] = work["STUD ALIGNMENT"].map(clean)
-    work = work[work["_STUD"] != ""].copy()
+    work["_FORMATION"] = work["OFF FORM"].map(clean)
+    work = work[(work["_STUD"] != "") & (work["_FORMATION"] != "")].copy()
     if work.empty:
         return pd.DataFrame(columns=columns)
 
     work["_TYPE"] = work.apply(
         lambda row: "PASS" if is_pass(row)
         else "RUN" if is_run(row)
-        else "OTHER",
+        else "",
         axis=1,
     )
-    counts = work.groupby(["_STUD", "_TYPE"]).size().unstack(fill_value=0)
-    for category in ("RUN", "PASS", "OTHER"):
+    work = work[work["_TYPE"].isin(["RUN", "PASS"])].copy()
+    if work.empty:
+        return pd.DataFrame(columns=columns)
+
+    counts = (
+        work.groupby(["_STUD", "_FORMATION", "_TYPE"])
+        .size()
+        .unstack(fill_value=0)
+    )
+    for category in ("RUN", "PASS"):
         if category not in counts.columns:
             counts[category] = 0
 
-    out = counts.reset_index().rename(columns={"_STUD": "STUD ALIGNMENT"})
-    out["PLAYS"] = out[["RUN", "PASS", "OTHER"]].sum(axis=1)
-    for category in ("RUN", "PASS", "OTHER"):
+    out = counts.reset_index().rename(columns={
+        "_STUD": "STUD ALIGNMENT",
+        "_FORMATION": "FORMATION",
+    })
+    out["PLAYS"] = out["RUN"] + out["PASS"]
+    for category in ("RUN", "PASS"):
         out[f"{category} %"] = (
             out[category] / out["PLAYS"] * 100
         ).round(1)
 
     return (
-        out.sort_values(["PLAYS", "STUD ALIGNMENT"], ascending=[False, True])
+        out.sort_values(
+            ["PLAYS", "STUD ALIGNMENT", "FORMATION"],
+            ascending=[False, True, True],
+        )
         .loc[:, columns]
         .reset_index(drop=True)
     )
