@@ -1778,6 +1778,10 @@ def stud_alignment_tendencies(df):
         df["PLAY DIR"] = ""
 
     work = df.copy()
+    # STUD NUMBER is a single selector value; carry it down for each play
+    # until another selector value is entered. Coaches should not need to
+    # repeat the jersey number in every row.
+    work["STUD NUMBER"] = work["STUD NUMBER"].map(clean).replace("", pd.NA).ffill()
     work["_STUD"] = work["STUD ALIGNMENT"].map(clean)
     work["_FORMATION"] = work["OFF FORM"].map(clean).replace("", "UNKNOWN")
     # The three STUD fields alone determine qualification. Formation is a grouping label,
@@ -1842,8 +1846,12 @@ def stud_alignment_situation_tendencies(df):
     if not required.issubset(df.columns):
         return pd.DataFrame(columns=columns)
 
+    work = df.copy()
+    # Match the main STUD report: STUD NUMBER is a selector, not a per-play field.
+    work["STUD NUMBER"] = work["STUD NUMBER"].map(clean).replace("", pd.NA).ffill()
+
     rows = []
-    for _, play in df.iterrows():
+    for _, play in work.iterrows():
         alignment = clean(play.get("STUD ALIGNMENT", ""))
         formation = clean(play.get("OFF FORM", ""))
         situation = situation_bucket(play.get("DN", ""), play.get("DIST", ""))
